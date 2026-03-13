@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+input, textarea{
+  @apply w-full border border-gray-300 rounded-lg px-3 py-2 mb-4;
+}
+
+input:focus, textarea:focus{
+  @apply border-blue-500 outline-none;
+}
+
+label{
+  @apply block text-gray-700 font-medium mb-1;
+}
+
+h1{
+  @apply text-2xl font-bold text-blue-900 mb-6;
+}
+
+.btn-primary{
+  @apply bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition;
+}
+
+.form-card{
+  @apply bg-white p-8 rounded-xl shadow-lg w-[420px];
+}
+table.products{
+  @apply w-full bg-white rounded-xl shadow-md overflow-hidden;
+}
+
+table.products thead{
+  @apply bg-gray-100;
+}
+
+table.products th{
+  @apply text-left p-4 font-semibold text-gray-700;
+}
+
+table.products td{
+  @apply p-4 border-t;
+}
+
+table.products tbody tr:hover{
+  @apply bg-gray-50;
+}
+
+.btn-edit{
+  @apply bg-green-500 text-white px-3 py-1 rounded-md text-sm mr-2 hover:bg-green-600;
+}
+
+.btn-delete{
+  @apply bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600;
+}
