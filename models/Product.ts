@@ -4,6 +4,7 @@ const ProductSchema = new Schema({
   title: { type: String, required: true },
   description: String,
   price: Number,
+  images: [String],
 })
 
 export const Product =

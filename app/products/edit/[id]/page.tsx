@@ -23,7 +23,7 @@ export default function EditProduct() {
 
   return (
       <Layout>
-        <h1 className="text-2xl font-bold mb-6">Edit Product</h1>
+        <h1 className="text-3xl font-bold mb-8 text-center">Edit Product</h1>
         <ProductForm {...product} />
       </Layout>
     )

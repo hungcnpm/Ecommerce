@@ -74,3 +74,13 @@ table.products tbody tr:hover{
 .btn-delete{
   @apply bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600;
 }
+@keyframes zoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

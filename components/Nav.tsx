@@ -37,7 +37,7 @@ export default function Nav() {
 
         <Link
           href="/products"
-          className={pathname === "/products" ? activeLink : inactiveLink}
+          className={pathname.startsWith('/products') ? activeLink : inactiveLink}
         >
           {/* product icon */}
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">

@@ -4,19 +4,29 @@ import Layout from "@/components/Layout";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-
+import ConfirmModal from "@/components/ConfirmModal"
+import toast from "react-hot-toast"
 export default function Products() {
   const [products, setProducts] = useState([]);
-
-  useEffect(() => {
-    axios.get("/api/products").then(res => {
-      setProducts(res.data);
-    });
-  }, []);
-
+  const [productToDelete,setProductToDelete] = useState(null);
+  async function loadProducts(){
+    const res = await fetch("/api/products")
+    const data = await res.json()
+    setProducts(data)
+  }
+  
+  useEffect(()=>{
+    loadProducts()
+  },[])
+ 
   async function deleteProduct(id: string) {
     await axios.delete(`/api/products/${id}`)
     setProducts(products.filter((p: any) => p._id !== id))
+    toast.success("Product deleted")
+
+    setProductToDelete(null)
+  
+    loadProducts()
   }
 
   return (
@@ -51,7 +61,14 @@ export default function Products() {
             <tr key={product._id}>
 
               <td>
+              {product.images?.length > 0 ? (
+                <img
+                  src={product.images[0]}
+                  className="w-12 h-12 object-cover rounded-md"
+                />
+              ) : (
                 <div className="w-12 h-12 bg-gray-200 rounded-md"></div>
+              )}
               </td>
 
               <td className="font-semibold">{product.title}</td>
@@ -71,7 +88,7 @@ export default function Products() {
                 </Link>
 
                 <button
-                  onClick={()=>deleteProduct(product._id)}
+                  onClick={() => setProductToDelete(product)}
                   className="btn-delete"
                 > 
                   Delete
@@ -84,7 +101,13 @@ export default function Products() {
         </tbody>
 
       </table>
-
+      {productToDelete && (
+      <ConfirmModal
+        title={`Delete "${productToDelete.title}" ?`}
+        onConfirm={()=>deleteProduct(productToDelete._id)}
+        onCancel={()=>setProductToDelete(null)}
+      />
+      )}
     </Layout>
   );
 }

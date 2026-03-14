@@ -1,6 +1,7 @@
 "use client"
 import { signIn, signOut, useSession } from "next-auth/react"
 import Nav from "@/components/Nav"
+import { Toaster } from "react-hot-toast"
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession()
@@ -26,6 +27,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="bg-white flex-grow mt-2 mr-2 mb-0 rounded-lg p-4 text-black">
         {children}
       </div>
+      <Toaster position="top-center"/>
     </div>
   )
 }
