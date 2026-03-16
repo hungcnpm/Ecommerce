@@ -21,5 +21,7 @@ export async function POST(req:Request){
     }).end(buffer)
   })
 
-  return Response.json(result)
+  return Response.json({
+    links: [result.secure_url]
+  })
 }

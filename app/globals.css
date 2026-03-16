@@ -84,3 +84,11 @@ table.products tbody tr:hover{
     transform: scale(1);
   }
 }
+table.basic{
+  border-collapse: collapse;
+}
+
+table.basic td{
+  border:1px solid #ddd;
+  padding:8px;
+}

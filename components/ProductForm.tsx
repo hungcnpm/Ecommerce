@@ -1,65 +1,71 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import ImagesUpload from "./ImagesUpload";
+
 export default function ProductForm({
   _id,
   title:existingTitle,
   description:existingDescription,
   price:existingPrice,
-  images: existingImages
+  images: existingImages,
+  category:existingCategory,
+  properties:existingProperties
 }:any){
-  console.log({_id});
+
   const router = useRouter();
 
   const [title,setTitle] = useState(existingTitle || "");
   const [description,setDescription] = useState(existingDescription || "");
   const [price,setPrice] = useState(existingPrice || "");
-  const [images,setImages] = useState(existingImages || [])
-  async function uploadImages(ev:any){
+  const [images,setImages] = useState(existingImages || []);
 
-    const files = ev.target.files
-  
-    for(const file of files){
-  
-      const data = new FormData()
-      data.append("file",file)
-  
-      const res = await fetch("/api/upload",{
-        method:"POST",
-        body:data
-      })
-  
-      const img = await res.json()
-  
-      setImages(old => [...old,img.url])
-    }
-  }
-  async function saveProduct(e: any) {
-    e.preventDefault()
+  const [categories,setCategories] = useState<any[]>([]);
+  const [category,setCategory] = useState(existingCategory || "");
+  const [productProperties,setProductProperties] = useState(existingProperties || {});
+
+  useEffect(()=>{
+    axios.get("/api/categories").then(res=>{
+      setCategories(res.data)
+    })
+  },[])
+
+  const selectedCategory = categories.find(c => c._id === category);
+  const categoryProperties = selectedCategory?.properties || [];
+
+  async function saveProduct(e:any){
+
+    e.preventDefault();
 
     const data = {
       title,
       description,
       price,
-      images
+      images,
+      category,
+      properties: productProperties
     }
 
     if (_id) {
       await axios.put(`/api/products/${_id}`, data)
+      toast.success("Product updated successfully")
     } else {
       await axios.post("/api/products", data)
+      toast.success("Product created")
     }
-    if(_id)
-      toast.success("Product updated successfully")
-    else
-      toast.success("Product created  ")
+
     router.push("/products")
   }
+
   return(
-    <form onSubmit={saveProduct} className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-md" >
+
+    <form
+      onSubmit={saveProduct}
+      className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-md"
+    >
 
       <label>Product Name</label>
       <input
@@ -79,59 +85,102 @@ export default function ProductForm({
 
       <label>Price</label>
       <input
+        className="w-full border border-gray-300 rounded-md px-3 py-2 mt-1 mb-3"
         value={price}
         onChange={ev=>setPrice(ev.target.value)}
         placeholder="Price"
       />
+
+      <label>Category</label>
+
+      <select
+        value={category}
+        onChange={ev=>setCategory(ev.target.value)}
+        className="w-full border border-gray-300 rounded-md px-3 py-2 mt-1 mb-4"
+      >
+
+        <option value="">No category</option>
+
+        {categories.map(cat=>(
+          <option key={cat._id} value={cat._id}>
+            {cat.name}
+          </option>
+        ))}
+
+      </select>
+
+      {/* CATEGORY PROPERTIES */}
+
+      {categoryProperties.length > 0 && (
+
+        <div className="mb-4">
+
+          <h3 className="font-semibold mb-2">
+            Category properties
+          </h3>
+
+          {categoryProperties.map((prop:any)=>(
+
+            <div key={prop.name} className="mb-3">
+
+              <label>{prop.name}</label>
+
+              <select
+                value={productProperties[prop.name] || ""}
+                onChange={ev=>setProductProperties(prev=>({
+                  ...prev,
+                  [prop.name]:ev.target.value
+                }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 mt-1"
+              >
+
+                <option value="">
+                  Select {prop.name}
+                </option>
+
+                {prop.values.map((v:any)=>(
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+
+              </select>
+
+            </div>
+
+          ))}
+
+        </div>
+
+      )}
+
       <label>Images</label>
 
-      <div className="mb-2">
-        <label className="w-24 h-24 bg-gray-200 rounded-lg cursor-pointer">
-          
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm gap-1">
-            
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4v12m0 0l-3-3m3 3l3-3M4 20h16"
-              />
-            </svg>
-
-            <span>Upload</span>
-
-          </div>
-
-          <input
-            type="file"
-            className="hidden"
-            onChange={uploadImages}
-          />
-
-        </label>
-        {!images?.length && (
-          <div>No photos in this product</div>
-        )}
+      <div className="mb-2 flex flex-wrap gap-2">
+        <ImagesUpload
+          images={images}
+          setImages={setImages}
+        />
       </div>
-      <div className="flex gap-2 mt-2">
-        {images.map(link => (
-          <img
-            key={link}
-            src={link}
-            className="w-20 h-20 object-cover rounded"
-          />
-        ))}
+
+      <div className="flex gap-2 mt-4 justify-center">
+
+        <button
+          type="button"
+          onClick={() => router.push("/products")}
+          className="bg-red-300 px-4 py-2 rounded-md"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded-md"
+        >
+          Save
+        </button>
+
       </div>
-      <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md mt-4 block mx-auto transition">
-        Save
-      </button>
 
     </form>
   )

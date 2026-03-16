@@ -17,23 +17,31 @@ export async function GET(
   
     return NextResponse.json(product)
   }
-export async function PUT(
-  req: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
-  const body = await req.json()
+  export async function PUT(req: Request, context: any) {
 
-  const client = await clientPromise
-  const db = client.db("ecommerce")
-
-  await db.collection("products").updateOne(
-    { _id: new ObjectId(id) },
-    { $set: body }
-  )
-
-  return NextResponse.json({ success: true })
-}
+    const { id } = await context.params
+  
+    const body = await req.json()
+  
+    const client = await clientPromise
+    const db = client.db("ecommerce")
+  
+    await db.collection("products").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          title: body.title,
+          description: body.description,
+          price: body.price,
+          images: body.images,
+          category: body.category,
+          properties: body.properties
+        }
+      }
+    )
+  
+    return NextResponse.json({ success: true })
+  }
 
 export async function DELETE(
   req: Request,
