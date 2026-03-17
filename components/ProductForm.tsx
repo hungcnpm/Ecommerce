@@ -164,21 +164,21 @@ export default function ProductForm({
       </div>
 
       <div className="flex gap-2 mt-4 justify-center">
-
+        <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 cursor-pointer"
+          >
+            Save
+        </button>
         <button
           type="button"
           onClick={() => router.push("/products")}
-          className="bg-red-300 px-4 py-2 rounded-md"
+          className="bg-red-600 px-4 py-2 text-white rounded-md hover:bg-red-700 cursor-pointer"
         >
           Cancel
         </button>
 
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded-md"
-        >
-          Save
-        </button>
+        
 
       </div>
 

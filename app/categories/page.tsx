@@ -4,9 +4,9 @@ import Layout from "@/components/Layout"
 import { useEffect, useState } from "react"
 import ConfirmModal from "@/components/ConfirmModal"
 import toast from "react-hot-toast"
-
+import { useRouter } from "next/navigation"
 export default function CategoriesPage(){
-
+const router = useRouter()
 const [name,setName] = useState("")
 const [parent,setParent] = useState("")
 const [categories,setCategories] = useState<any[]>([])
@@ -64,7 +64,7 @@ async function saveCategory(ev:any){
    headers:{'Content-Type':'application/json'},
    body:JSON.stringify(data)
   })
-
+  toast.success("Category updated successfully")
  }else{
 
   await fetch("/api/categories",{
@@ -72,13 +72,14 @@ async function saveCategory(ev:any){
    headers:{'Content-Type':'application/json'},
    body:JSON.stringify(data)
   })
+    toast.success("Category created")
 
- }
+}
 
- setName("")
- setParent("")
- setProperties([])
- setEditedCategory(null)
+setName("")
+setParent("")
+setProperties([])
+setEditedCategory(null)
 
  fetchCategories()
 }
@@ -94,7 +95,6 @@ function editCategory(cat:any){
   }))
 
  )
- toast.success("Category updated successfully")
 
 }
 
@@ -162,7 +162,7 @@ return (
     <button
     type="button"
     onClick={addProperty}
-    className="bg-blue-200 px-3 py-1 rounded"
+    className="bg-blue-200 px-3 py-1 rounded hover:bg-blue-300 cursor-pointer"
     >
     + Add property
     </button>
@@ -205,13 +205,29 @@ return (
 
     </div>
 
-    <div className="flex justify-center">
-
+    <div className="flex justify-center gap-2 mt-4">
+    
     <button
-    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 "
+    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 cursor-pointer"
     >
     Save Category
     </button>
+    {editedCategory && (
+
+        <button
+        type="button"
+        onClick={() => {
+            setName("")
+            setParent("")
+            setProperties([])
+            setEditedCategory(null)
+            router.push("/categories")
+          }}
+        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 cursor-pointer"
+        >
+        Cancel
+        </button>
+    )}
 
     </div>
 
@@ -222,7 +238,9 @@ return (
     </div>
 
     <div className="mt-2">
+    {!editedCategory && (
 
+   
     <table className="products">
 
     <thead>
@@ -280,6 +298,7 @@ return (
     </tbody>
 
     </table>
+    )}
     {categoryToDelete && (
           <ConfirmModal
             title={`Delete "${categoryToDelete.name}" ?`}
@@ -287,7 +306,6 @@ return (
             onCancel={()=>setCategoryToDelete(null)}
           />
     )}
-
     </div>
 
 </Layout>
