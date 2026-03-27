@@ -1,3 +1,4 @@
+import { timeStamp } from "console"
 import mongoose, { Schema, model, models } from "mongoose"
 
 const ProductSchema = new Schema({
@@ -9,8 +10,10 @@ const ProductSchema = new Schema({
 
   properties:{
     type:Object
-  }
+  },
 
+},{
+  timestamps:true,
 })
 
 export const Product =

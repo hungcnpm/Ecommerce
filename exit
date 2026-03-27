@@ -1,0 +1,29 @@
+[33mcommit 43bb8bf5e6b7ca6258acf92e1f507554ab6ca826[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: chouser <tranquochung567@gmail.com>
+Date:   Mon Mar 16 18:03:29 2026 +0700
+
+    feat(categories): implement category system
+    
+    - implement category CRUD with parent support
+    
+    - add dynamic properties to categories
+    
+    - support category-based properties for products
+
+[33mcommit 16d4f9c17c1b0ddedb6816e8a72c526116074ac8[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: chouser <tranquochung567@gmail.com>
+Date:   Sat Mar 14 16:41:33 2026 +0700
+
+    feat: implement product CRUD with toast notifications and delete confirmation modal
+
+[33mcommit 0d7f2cff529502feb79970c791f1e8bdea1b4c71[m
+Author: chouser <tranquochung567@gmail.com>
+Date:   Sat Mar 14 12:02:33 2026 +0700
+
+    fix: fix sign in with google
+
+[33mcommit 9f7d2edf4a84eaf587b515da0cec2b987c233498[m
+Author: chouser <tranquochung567@gmail.com>
+Date:   Fri Mar 13 22:03:41 2026 +0700
+
+    Sign in with google and add first CRUD for product
