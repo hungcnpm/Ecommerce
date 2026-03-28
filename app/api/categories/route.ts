@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const client = await clientPromise
     const db = client.db("ecommerce")
 
-    let query: any = { isActive: true }
+    let query: any = {  }
 
     if (search) {
       const matched = await db.collection("categories")
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
       level,
       path,
       properties: body.properties || [],
-      isActive: true,
+      isActive: body.isActive||true,
       createdAt: new Date(),
       updatedAt: new Date()
     })

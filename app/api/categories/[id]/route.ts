@@ -79,6 +79,7 @@ export async function PUT(
           level,
           path,
           properties: body.properties || [],
+          isActive: body.isActive ?? true,
           updatedAt: new Date()
         }
       }

@@ -14,6 +14,7 @@ export default function EditCategoryModal({
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [properties, setProperties] = useState<any[]>([])
+  const [isActive, setIsActive] = useState(true) // ✅ NEW
 
   // load data
   useEffect(() => {
@@ -23,7 +24,7 @@ export default function EditCategoryModal({
       const parentId = category.parent?._id || category.parent || ""
       setParent(parentId)
       setParentSearch(category.parent?.name || "")
-
+      setIsActive(category.isActive ?? true)
       setProperties(
         (category.properties || []).map((p: any) => ({
           name: p.name,
@@ -182,8 +183,17 @@ export default function EditCategoryModal({
               </div>
             )}
           </div>
+           {/* ✅ isActive */}
+          <div className="mb-6 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />
+            <span>Active</span>
+          </div>
         </div>
-
+       
         {/* PROPERTIES (y chang form chính) */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-3">
@@ -225,7 +235,7 @@ export default function EditCategoryModal({
                 onChange={e =>
                   updateProperty(index, "type", e.target.value)
                 }
-                className="border rounded col-span-2"
+                className="border rounded p-2 col-span-2 mb-4"
               >
                 <option value="text">Text</option>
                 <option value="select">Select</option>
@@ -260,6 +270,7 @@ export default function EditCategoryModal({
               onSave({
                 name,
                 parent,
+                isActive,
                 properties: properties.map(p => ({
                   name: p.name,
                   type: p.type,

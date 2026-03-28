@@ -13,6 +13,8 @@ const [name, setName] = useState("")
 const [parent, setParent] = useState("")
 const [categories, setCategories] = useState<any[]>([])
 const [properties, setProperties] = useState<any[]>([])
+const [isActive, setIsActive] = useState(true)
+
 const [editingCategory, setEditingCategory] = useState(null)
 const [showEditModal, setShowEditModal] = useState(false)
 const [categoryToDelete, setCategoryToDelete] = useState<any>(null)
@@ -28,6 +30,9 @@ const [showDropdown, setShowDropdown] = useState(false)
 const [allCategories, setAllCategories] = useState<any[]>([])
 const [parentSearch, setParentSearch] = useState("")
 const [showParentDropdown, setShowParentDropdown] = useState(false)
+
+const [statusFilter, setStatusFilter] = useState("all")
+const [updatingId, setUpdatingId] = useState<string | null>(null)
 
 useEffect(() => {
   fetchAllCategories()
@@ -180,6 +185,7 @@ setLoading(true)
 const data = {
   name,
   parent: parent || null,
+  isActive,
   properties: properties.map(p => ({
     name: p.name,
     type: p.type,
@@ -215,6 +221,7 @@ try {
   setProperties([])
   setEditingCategory(null)
   setParentSearch("") 
+  setIsActive(true)
   await fetchCategories(1)
 
 } catch (error) {
@@ -232,19 +239,19 @@ function editCategory(cat: any) {
 }
 
 async function deleteCategory(id: string) {
-await fetch(`/api/categories/${id}`, {
-method: "DELETE"
-})
+  await fetch(`/api/categories/${id}`, {
+    method: "DELETE"
+  })
 
 
-toast.success("Category hidden")
-setCategoryToDelete(null)
+  toast.success("Category hidden")
+  setCategoryToDelete(null)
 
-// 🔥 reset list
-setCategories([])
-setPage(1)
-setHasMore(true)
-
+  // 🔥 reset list
+  setCategories([])
+  setPage(1)
+  setHasMore(true)
+  await fetchCategories(1)
 
 }
 
@@ -256,6 +263,43 @@ function handleSelect(item: any) {
   setPage(1)
   setHasMore(true)
   fetchCategories(1, item.name)
+}
+async function toggleActive(cat: any) {
+  const newStatus = !cat.isActive
+  setUpdatingId(cat._id)
+
+  // optimistic UI
+  setCategories(prev =>
+    prev.map(c =>
+      c._id === cat._id ? { ...c, isActive: newStatus } : c
+    )
+  )
+
+  try {
+    await fetch(`/api/categories/${cat._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: cat.name,
+        parent: cat.parent?._id || cat.parent || null,
+        properties: cat.properties || [],
+        isActive: newStatus
+      })
+    })
+
+    toast.success("Updated")
+  } catch {
+    toast.error("Failed")
+
+    // rollback
+    setCategories(prev =>
+      prev.map(c =>
+        c._id === cat._id ? { ...c, isActive: !newStatus } : c
+      )
+    )
+  }
+
+  setUpdatingId(null)
 }
 return ( 
 <Layout> 
@@ -348,7 +392,14 @@ return (
           )}
 
         </div>
-
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          <span>Active</span>
+        </div>
         </div>
 
         {/* properties */}
@@ -446,6 +497,17 @@ return (
   </div>
 
   <div className="mt-2">
+    <div className="mb-4 flex gap-2">
+    <select
+      value={statusFilter}
+      onChange={(e) => setStatusFilter(e.target.value)}
+      className="border p-3 rounded-lg"
+    >
+      <option value="all" >All</option>
+      <option value="active">Active</option>
+      <option value="hidden">Hidden</option>
+    </select>
+  </div>
   {/* 🔥 SEARCH */} 
     <div className="mb-4 flex items-center gap-2"> 
       <div className="relative w-80 search-box"> 
@@ -488,26 +550,55 @@ return (
               )} 
               </div> 
     </div> 
-    
+        
         <table className="products">
           <thead>
             <tr>
               <th>Name</th>
               <th>Parent</th>
+              <th>Status</th>
               <th>Action</th>
             </tr>
           </thead>
 
           <tbody>
-            {categories.map(cat => {
+          {categories.filter(cat => {
+              if (statusFilter === "active") return cat.isActive
+              if (statusFilter === "hidden") return !cat.isActive
+              return true
+            }).map(cat => {
               return (
-                <tr key={cat._id} className="border-t hover:bg-gray-50">
+                <tr key={cat._id}
+                  className={`border-t hover:bg-gray-50 ${
+                  !cat.isActive ? "opacity-50" : ""
+                  }`}>
                   <td>
-                    {"— ".repeat(cat.level || 0)} {cat.name}
+                  {"— ".repeat(cat.level || 0)} {cat.name}
+                  {!cat.isActive && (
+                    <span className="text-red-500 ml-2">(Hidden)</span>
+                  )}
                   </td>
 
                   <td>{cat.parent?.name || "-"}</td>
+                  <td>
+                  <label className="inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cat.isActive}
+                      onChange={() => toggleActive(cat)}
+                      className="peer sr-only"
+                    />
 
+                    {/* track */}
+                    <div className="w-11 h-6 bg-gray-200 rounded-full transition-all relative peer-checked:bg-green-500 peer-checked:[&>div]:translate-x-5">
+
+                      {/* thumb */}
+                      <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-300"></div>
+
+                    </div>
+
+                  </label>
+                  </td>
                   <td>
                   <button
                     onClick={() => editCategory(cat)}
@@ -520,7 +611,7 @@ return (
                       onClick={() => setCategoryToDelete(cat)}
                       className="btn-delete"
                     >
-                      Delete
+                      Hide
                     </button>
                   </td>
                 </tr>
@@ -528,7 +619,7 @@ return (
             })}
           </tbody>
         </table>
-
+      
         {/* 🔥 load more trigger */}
         <div id="load-more" className="h-10"></div>
 
