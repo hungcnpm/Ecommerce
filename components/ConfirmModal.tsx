@@ -12,14 +12,14 @@ export default function ConfirmModal({title,onConfirm,onCancel}:any){
         <div className="flex justify-center gap-4">
           <button
             onClick={onConfirm}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded cursor-pointer"
           >
             Yes
           </button>
 
           <button
             onClick={onCancel}
-            className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded"
+            className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded cursor-pointer"
           >
             No
           </button>

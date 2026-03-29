@@ -22,6 +22,7 @@ const CategorySchema = new Schema({
   properties: [
     {
       name: { type: String },
+      skuPrefix: {rype: String},
       type: { type: String, enum: ["text", "select"], default: "text" },
       values: [{ type: String }],
       isFilterable: { type: Boolean, default: true }
