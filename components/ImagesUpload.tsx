@@ -27,7 +27,7 @@ function SortableImage({ url, remove }) {
     };
 
   return (
-    <div ref={setNodeRef} style={style} className="relative w-24 h-24">
+    <div ref={setNodeRef} style={style} className="relative w-24 h-24 rounded-md overflow-hidden cursor-move">
       
       {/* Drag handle */}
       <img

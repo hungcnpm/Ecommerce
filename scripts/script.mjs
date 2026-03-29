@@ -419,7 +419,103 @@ const categories = [
     }
   ]
 
-
+function getPropertiesByCategory(name) {
+    const map = {
+      "Điện Thoại & Phụ Kiện": [
+        { name: "Brand", values: ["Apple", "Samsung", "Xiaomi", "Oppo"] },
+        { name: "Ram", values: ["4", "6", "8", "12", "16"] },
+        { name: "Memory", values: ["64", "128", "256", "512"] },
+        { name: "Color", values: ["Black", "White", "Blue", "Purple", "Gold"] },
+        { name: "Screen Size", values: ["5.5", "6.1", "6.7"] },
+        { name: "Battery", values: ["3000", "4000", "5000"] },
+        { name: "Camera", values: ["12MP", "48MP", "108MP"] },
+        { name: "Chip", values: ["A15", "A16", "Snapdragon 8"] },
+        { name: "Sim", values: ["1 SIM", "2 SIM"] },
+        { name: "OS", values: ["iOS", "Android"] },
+        { name: "Warranty", values: ["6 months", "12 months"] },
+        { name: "Condition", values: ["New", "Like New"] }
+      ],
+  
+      "Máy Tính & Laptop": [
+        { name: "Brand", values: ["Dell", "HP", "Asus", "Apple"] },
+        { name: "CPU", values: ["i3", "i5", "i7", "i9", "Ryzen 5", "Ryzen 7"] },
+        { name: "Ram", values: ["8", "16", "32", "64"] },
+        { name: "Storage", values: ["256GB", "512GB", "1TB", "2TB"] },
+        { name: "GPU", values: ["Integrated", "RTX 3050", "RTX 3060"] },
+        { name: "Screen Size", values: ["13", "14", "15.6", "17"] },
+        { name: "Resolution", values: ["FHD", "2K", "4K"] },
+        { name: "Refresh Rate", values: ["60Hz", "120Hz", "144Hz"] },
+        { name: "Weight", values: ["1kg", "1.5kg", "2kg"] },
+        { name: "Battery", values: ["4h", "6h", "10h"] },
+        { name: "OS", values: ["Windows", "MacOS"] },
+        { name: "Warranty", values: ["12 months", "24 months"] }
+      ],
+  
+      "Thời Trang Nam": [
+        { name: "Size", values: ["S", "M", "L", "XL", "XXL"] },
+        { name: "Color", values: ["Black", "White", "Blue", "Gray"] },
+        { name: "Material", values: ["Cotton", "Polyester", "Denim"] },
+        { name: "Fit", values: ["Slim", "Regular", "Oversize"] },
+        { name: "Style", values: ["Casual", "Sport", "Formal"] },
+        { name: "Sleeve", values: ["Short", "Long"] },
+        { name: "Season", values: ["Summer", "Winter"] },
+        { name: "Origin", values: ["Vietnam", "China"] },
+        { name: "Brand", values: ["Local", "Nike", "Adidas"] },
+        { name: "Pattern", values: ["Plain", "Printed"] }
+      ],
+  
+      "Thời Trang Nữ": [
+        { name: "Size", values: ["S", "M", "L", "XL"] },
+        { name: "Color", values: ["Black", "White", "Pink", "Red"] },
+        { name: "Material", values: ["Cotton", "Silk", "Linen"] },
+        { name: "Style", values: ["Casual", "Sexy", "Office"] },
+        { name: "Length", values: ["Short", "Midi", "Long"] },
+        { name: "Sleeve", values: ["Short", "Long", "Sleeveless"] },
+        { name: "Fit", values: ["Slim", "Loose"] },
+        { name: "Season", values: ["Summer", "Winter"] },
+        { name: "Brand", values: ["Local", "Zara"] }
+      ],
+  
+      "Giày Dép Nam": [
+        { name: "Size", values: ["38", "39", "40", "41", "42", "43"] },
+        { name: "Color", values: ["Black", "Brown", "White"] },
+        { name: "Material", values: ["Leather", "Canvas"] },
+        { name: "Type", values: ["Sneaker", "Boot", "Sandal"] },
+        { name: "Brand", values: ["Nike", "Adidas"] },
+        { name: "Style", values: ["Sport", "Casual"] },
+        { name: "Origin", values: ["Vietnam", "China"] }
+      ],
+  
+      "Giày Dép Nữ": [
+        { name: "Size", values: ["35", "36", "37", "38", "39"] },
+        { name: "Color", values: ["Black", "Beige", "Pink"] },
+        { name: "Material", values: ["Leather", "Fabric"] },
+        { name: "Heel", values: ["Flat", "5cm", "7cm"] },
+        { name: "Type", values: ["Heel", "Sneaker", "Sandal"] },
+        { name: "Brand", values: ["Nike", "Zara"] }
+      ],
+  
+      "Đồng Hồ": [
+        { name: "Brand", values: ["Casio", "Rolex", "Seiko"] },
+        { name: "Gender", values: ["Nam", "Nữ"] },
+        { name: "Strap", values: ["Leather", "Steel", "Rubber"] },
+        { name: "Water Resistance", values: ["3ATM", "5ATM", "10ATM"] },
+        { name: "Movement", values: ["Quartz", "Automatic"] },
+        { name: "Glass", values: ["Sapphire", "Mineral"] }
+      ],
+  
+      "Thiết Bị Điện Tử": [
+        { name: "Brand", values: ["Sony", "Samsung", "LG"] },
+        { name: "Type", values: ["TV", "Speaker", "Headphone"] },
+        { name: "Power", values: ["20W", "50W", "100W"] },
+        { name: "Connectivity", values: ["Bluetooth", "WiFi"] },
+        { name: "Warranty", values: ["6 months", "12 months"] },
+        { name: "Origin", values: ["Vietnam", "China"] }
+      ]
+    };
+  
+    return map[name] || [];
+}
 // 🔥 slugify (xịn, bỏ dấu tiếng Việt)
 function slugify(str) {
   return str
@@ -450,7 +546,7 @@ async function insertCategory(
     level,
     path,
     isActive: true,
-    properties: [],
+    properties: getPropertiesByCategory(category.name),
     createdAt: new Date(),
     updatedAt: new Date(),
   });

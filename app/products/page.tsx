@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ConfirmModal from "@/components/ConfirmModal"
 import toast from "react-hot-toast"
+
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [productToDelete,setProductToDelete] = useState(null);
@@ -49,6 +50,8 @@ export default function Products() {
           <tr>
             <th>Image</th>
             <th>Product</th>
+            <th>Brand</th>
+            <th>Category</th>
             <th>Description</th>
             <th>Price</th>
             <th></th>
@@ -72,7 +75,8 @@ export default function Products() {
               </td>
 
               <td className="font-semibold">{product.title}</td>
-
+              <td>{product.brand||"No brand"}</td>
+              <td>{product.category?.name||"No category"}</td>
               <td>{product.description}</td>
 
               <td className="text-blue-600 font-semibold">

@@ -181,7 +181,6 @@ async function saveCategory(ev: any) {
 ev.preventDefault()
 setLoading(true)
 
-
 const data = {
   name,
   parent: parent || null,

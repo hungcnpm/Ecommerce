@@ -7,10 +7,18 @@ const ProductSchema = new Schema({
   price: Number,
   images: [String],
   category:{type:mongoose.Types.ObjectId,ref:"Category"},
-
+  brand: {type: String, default: "GEN" },
   properties:{
     type:Object
   },
+  variants: [
+    {
+      attributes: Object,
+      price: Number,
+      stock: Number,
+      sku: String
+    }
+  ]
 
 },{
   timestamps:true,
