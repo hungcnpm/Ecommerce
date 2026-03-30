@@ -1,22 +1,47 @@
 "use client"
 
 import { useEffect, useState } from "react"
-
+import PropertyDropdown from "./PropertyDropdown"
+import MultiSelect from "./MultiSelect"
 export default function EditCategoryModal({
   open,
   onClose,
   category,
-  onSave
+  onSave,
+  properties,
+  setProperties
 }: any) {
+
   const [name, setName] = useState("")
   const [parent, setParent] = useState("")
   const [parentSearch, setParentSearch] = useState("")
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
-  const [properties, setProperties] = useState<any[]>([])
-  const [isActive, setIsActive] = useState(true) // ✅ NEW
 
-  // load data
+  const [allProperties, setAllProperties] = useState<any[]>([])
+
+  const [isActive, setIsActive] = useState(true)
+  const [searchProp, setSearchProp] = useState("")
+  const [showPropDropdown, setShowPropDropdown] = useState(false)
+
+
+  const filteredProps = allProperties.filter((p: any) =>
+    p.name.toLowerCase().includes(searchProp.toLowerCase())
+  )
+  useEffect(() => {
+    function handleClick(e: any) {
+      if (!e.target.closest(".parent-select")) {
+        setShowDropdown(false)
+      }
+      if (!e.target.closest(".prop-select")) {
+        setShowPropDropdown(false)
+      }
+    }
+  
+    document.addEventListener("click", handleClick)
+    return () => document.removeEventListener("click", handleClick)
+  }, [])
+  // 🔥 LOAD CATEGORY
   useEffect(() => {
     if (category) {
       setName(category.name || "")
@@ -25,88 +50,43 @@ export default function EditCategoryModal({
       setParent(parentId)
       setParentSearch(category.parent?.name || "")
       setIsActive(category.isActive ?? true)
-      setProperties(
-        (category.properties || []).map((p: any) => ({
-          name: p.name,
-          type: p.type || "text",
-          values: (p.values || []).join(",")
-        }))
-      )
     }
   }, [category])
+
+  // 🔥 LOAD ALL PROPERTIES
   useEffect(() => {
-    function handleClick(e: any) {
-      if (!e.target.closest(".parent-select")) {
-        setShowDropdown(false)
-      }
-    }
-  
-    document.addEventListener("click", handleClick)
-    return () => document.removeEventListener("click", handleClick)
+    fetch("/api/properties")
+      .then(res => res.json())
+      .then(data => setAllProperties(data))
   }, [])
-  // 🔥 lock scroll
-  useEffect(() => {
-    if (open) document.body.style.overflow = "hidden"
-    else document.body.style.overflow = "auto"
 
-    return () => {
-      document.body.style.overflow = "auto"
-    }
-  }, [open])
-
-  // 🔥 search parent
+  const options = allProperties.map(p => ({
+    label: p.name,
+    value: p._id.toString()
+  })) 
+  // 🔥 SEARCH CATEGORY (debounce)
   useEffect(() => {
-    if (!parentSearch) {
+    const timer = setTimeout(() => {
       fetch(`/api/categories?limit=9999`)
         .then(res => res.json())
         .then(data => {
           const filtered = (data.data || []).filter(
-            (c: any) => c._id !== category?._id
+            (c: any) =>
+              c._id !== category?._id &&
+              c.name.toLowerCase().includes(parentSearch.toLowerCase())
           )
           setSuggestions(filtered)
         })
-      return
-    }
-   
-    const timer = setTimeout(() => {
-      fetch(`/api/categories?search=${parentSearch}&limit=10`)
-        .then(res => res.json())
-        .then(data => {
-          const filtered = (data.data || []).filter(
-            (c: any) => c._id !== category?._id
-          )
-          setSuggestions(filtered)
-        })
-    }, 300)
+    }, 200)
 
     return () => clearTimeout(timer)
   }, [parentSearch])
-
-  // 🔥 property logic giống form chính
-  function addProperty() {
-    setProperties(prev => [
-      ...prev,
-      { name: "", values: "", type: "text" }
-    ])
-  }
-
-  function updateProperty(index: number, field: string, value: string) {
-    const props = [...properties]
-    props[index][field] = value
-    setProperties(props)
-  }
-
-  function removeProperty(index: number) {
-    const props = [...properties]
-    props.splice(index, 1)
-    setProperties(props)
-  }
 
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 "
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div
@@ -117,8 +97,9 @@ export default function EditCategoryModal({
           Edit Category
         </h2>
 
-        {/* NAME + PARENT */}
+        {/* NAME + PARENT */} 
         <div className="flex gap-4 mb-6">
+
           <input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -126,7 +107,7 @@ export default function EditCategoryModal({
             className="border rounded-md p-2 w-1/2 h-12"
           />
 
-          {/* PARENT SEARCH */}
+          {/* 🔥 PARENT SELECT */}
           <div className="relative w-1/2 parent-select">
             <input
               value={parentSearch}
@@ -151,12 +132,13 @@ export default function EditCategoryModal({
               </button>
             )}
 
-            {showDropdown && suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-[9999] max-h-60 overflow-auto">
+            {showDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-[9999] max-h-60 overflow-y-auto">
+
                 <div
                   onClick={() => {
                     setParent("")
-                    setParentSearch("No parent")
+                    setParentSearch("")
                     setShowDropdown(false)
                   }}
                   className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
@@ -180,11 +162,13 @@ export default function EditCategoryModal({
                     {cat.name}
                   </div>
                 ))}
+
               </div>
             )}
           </div>
-           {/* ✅ isActive */}
-          <div className="mb-6 flex items-center gap-2">
+
+          {/* ACTIVE */}
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={isActive}
@@ -193,75 +177,27 @@ export default function EditCategoryModal({
             <span>Active</span>
           </div>
         </div>
-       
-        {/* PROPERTIES (y chang form chính) */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-lg">Properties</h3>
 
-            <button
-              type="button"
-              onClick={addProperty}
-              className="bg-blue-200 px-3 py-1 rounded"
-            >
-              + Add property
-            </button>
-          </div>
-
-          {properties.length > 0 && (
-            <div className="grid grid-cols-12 gap-3 mb-2 text-sm text-gray-500">
-              <div className="col-span-3">Name</div>
-              <div className="col-span-2">Type</div>
-              <div className="col-span-5">Values</div>
-              <div className="col-span-2"></div>
-            </div>
-          )}
-
-          {properties.map((prop, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-12 gap-3 items-center mb-2"
-            >
-              <input
-                value={prop.name}
-                onChange={e =>
-                  updateProperty(index, "name", e.target.value)
-                }
-                className="border rounded col-span-3"
-              />
-
-              <select
-                value={prop.type}
-                onChange={e =>
-                  updateProperty(index, "type", e.target.value)
-                }
-                className="border rounded p-2 col-span-2 mb-4"
-              >
-                <option value="text">Text</option>
-                <option value="select">Select</option>
-              </select>
-
-              <input
-                value={prop.values}
-                onChange={e =>
-                  updateProperty(index, "values", e.target.value)
-                }
-                className="border rounded col-span-5"
-              />
-
-              <button
-                onClick={() => removeProperty(index)}
-                className="btn-delete col-span-2"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
+        {/* 🔥 PROPERTY CHECKBOX */}
+          {/* <PropertyDropdown properties={properties} setProperties={setProperties} 
+          /> */}
+        <MultiSelect
+          options={options}
+          value={properties}
+          onChange={setProperties}
+          placeholder="Search properties..."
+        />
 
         {/* ACTION */}
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 bg-gray-300 rounded cusror-pointer">
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                onClose()
+              }
+            }}
+            className="px-4 py-2 bg-gray-400 rounded hover:bg-gray-500 cursor-pointer"
+          >
             Cancel
           </button>
 
@@ -271,19 +207,15 @@ export default function EditCategoryModal({
                 name,
                 parent,
                 isActive,
-                properties: properties.map(p => ({
-                  name: p.name,
-                  type: p.type,
-                  values: p.values.split(",").map((v: string) => v.trim()),
-                  isFilterable: true
-                }))
+                properties // ✅ FIX: chỉ gửi ID
               })
-            }
-            className="px-4 py-2 bg-blue-600 text-white rounded cusror-pointer"
+            } 
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700 cursor-pointer"
           >
             Save
           </button>
         </div>
+
       </div>
     </div>
   )

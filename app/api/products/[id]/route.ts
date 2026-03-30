@@ -72,22 +72,10 @@ export async function PUT(req: Request, context: any) {
   }
 
   // 🔥 validate properties
-  const validProperties: any = {}
-
-  for (const prop of category.properties || []) {
-    const value = body.properties?.[prop.name]
-
-    if (value) {
-      if (prop.type === "select" && !prop.values.includes(value)) {
-        return NextResponse.json(
-          { error: `Invalid value for ${prop.name}` },
-          { status: 400 }
-        )
-      }
-
-      validProperties[prop.name] = value
-    }
-  }
+  const validProperties = (body.properties || []).map((p: any) => ({
+    property: new ObjectId(p.property),
+    value: p.value
+  }));
 
   const prefix = category?.skuPrefix || "SKU";
   const variants = [];
@@ -116,7 +104,7 @@ export async function PUT(req: Request, context: any) {
         category: categoryId, // ✅ dùng lại biến đã validate
         properties: validProperties, // ✅ dùng validated data
         brand: body.brand || "GEN", // 👈 thêm brand
-        variants,
+        variants, 
         updatedAt: new Date(),
       },
     }

@@ -13,7 +13,7 @@ export default function CategorySelect({
   const [categories, setCategories] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [showDropdown, setShowDropdown] = useState(false)
-
+  
   useEffect(() => {
     fetch("/api/categories?limit=9999")
       .then(res => res.json())
@@ -44,12 +44,24 @@ export default function CategorySelect({
     <div className="relative category-select">
 
       <input
-        value={selected?.name || search}
+        value={search}
         onChange={e => {
-          setSearch(e.target.value)
+          const val = e.target.value
+          setSearch(val)
+          setShowDropdown(true)
+
+          // 👉 nếu xoá hết thì clear category
+          if (val === "") {
+            onChange("")
+          }
+        }}
+        onFocus={() => {
+          // 👉 nếu chưa có search thì lấy từ selected
+          if (!search && selected) {
+            setSearch(selected.name)
+          }
           setShowDropdown(true)
         }}
-        onFocus={() => setShowDropdown(true)}
         placeholder="Select category..."
         className="input"
       />
@@ -73,7 +85,7 @@ export default function CategorySelect({
               key={cat._id}
               onClick={() => {
                 onChange(cat._id)
-                setSearch("")
+                setSearch(cat.name) // 👉 giữ lại text luôn
                 setShowDropdown(false)
               }}
               className={`px-3 py-2 cursor-pointer ${value === cat._id ? "bg-blue-100" : "hover:bg-blue-50"}`}

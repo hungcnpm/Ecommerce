@@ -9,6 +9,7 @@ import {
   FolderTree,
   ShoppingCart,
   Settings,
+  SlidersHorizontal ,
   Icon,
   LogOut
 } from "lucide-react";
@@ -107,7 +108,14 @@ export default function Nav() {
           >
             Categories
           </NavLink>
-
+          <NavLink
+            href="/properties"
+            active={pathname.startsWith("/properties")}
+            collapsed={collapsed}
+            icon={SlidersHorizontal }
+          >
+            Properties
+          </NavLink>
           <NavLink
             href="/orders"
             active={pathname === "/orders"}
