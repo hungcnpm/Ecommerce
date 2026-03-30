@@ -6,13 +6,14 @@ import ConfirmModal from "@/components/ConfirmModal"
 import toast from "react-hot-toast"
 import { useRouter } from "next/navigation"
 import EditCategoryModal from "@/components/EditCategoryModal"
+import PropertyDropdown from "@/components/PropertyDropdown"
+import MultiSelect from "@/components/MultiSelect"
 export default function CategoriesPage() {
 const router = useRouter()
 
 const [name, setName] = useState("")
 const [parent, setParent] = useState("")
 const [categories, setCategories] = useState<any[]>([])
-const [properties, setProperties] = useState<any[]>([])
 const [isActive, setIsActive] = useState(true)
 
 const [editingCategory, setEditingCategory] = useState(null)
@@ -23,7 +24,6 @@ const [page, setPage] = useState(1)
 const [hasMore, setHasMore] = useState(true)
 const [loading, setLoading] = useState(false)
 
-const [search, setSearch] = useState("")
 const [suggestions, setSuggestions] = useState<any[]>([])
 const [showDropdown, setShowDropdown] = useState(false)
 
@@ -34,10 +34,20 @@ const [showParentDropdown, setShowParentDropdown] = useState(false)
 const [statusFilter, setStatusFilter] = useState("all")
 const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+const [allProperties, setAllProperties] = useState([])
+const [properties, setProperties] = useState([])
+const [searchCategory, setSearchCategory] = useState("")
+const [searchProperty, setSearchProperty] = useState("")
+
+
 useEffect(() => {
   fetchAllCategories()
 }, [])
-
+useEffect(() => {
+  fetch("/api/properties")
+    .then(res => res.json())
+    .then(data => setAllProperties(data))
+}, [])
 async function fetchAllCategories() {
   const res = await fetch("/api/categories?limit=9999")
   const data = await res.json()
@@ -47,27 +57,27 @@ async function fetchAllCategories() {
 const filteredParents = allCategories.filter(c =>
   c.name.toLowerCase().includes(parentSearch.toLowerCase())
 )
-// reset khi search
+// reset khi search 
 useEffect(() => {
   const timer = setTimeout(() => {
     setCategories([])
     setPage(1)
     setHasMore(true)
-    fetchCategories(1, search)
+    fetchCategories(1, searchCategory)
   }, 400)
 
   return () => clearTimeout(timer)
-}, [search])
+}, [searchCategory])
 
 useEffect(() => {
-  if (!search) {
+  if (!searchCategory) {
     setSuggestions([])
     return
   }
 
-  fetchSuggestions(search)
+  fetchSuggestions(searchCategory)
   setShowDropdown(true)
-}, [search])
+}, [searchCategory])
 useEffect(() => {
   function handleClick(e: any) {
     if (!e.target.closest(".search-box")) {
@@ -93,7 +103,7 @@ async function fetchSuggestions(keyword: string) {
   setSuggestions(data.data || [])
 }
 
-async function fetchCategories(pageParam = page, keyword = search) {
+async function fetchCategories(pageParam = page, keyword = searchCategory) {
   if (loading) return
 
   // 🔥 CHỈ block khi scroll (page > 1)
@@ -136,47 +146,6 @@ useEffect(() => {
 
   return () => observer.disconnect()
 }, [hasMore, loading, page])
-
-function addProperty() {
-setProperties(prev => [
-...prev,
-{ name: "", values: "", type: "text" }
-])
-}
-
-function updateProperty(index: number, field: string, value: string) {
-const props = [...properties]
-props[index][field] = value
-setProperties(props)
-}
-
-function removeProperty(index: number) {
-const props = [...properties]
-props.splice(index, 1)
-setProperties(props)
-}
-
-async function handleParentChange(parentId: string) {
-setParent(parentId)
-
-
-if (!parentId || editingCategory) return
-
-const parentCategory = categories.find(c => c._id === parentId)
-
-if (parentCategory?.properties) {
-  setProperties(
-    parentCategory.properties.map((p: any) => ({
-      name: p.name,
-      type: p.type || "text",
-      values: (p.values || []).join(",")
-    }))
-  )
-}
-
-
-}
-
 async function saveCategory(ev: any) {
 ev.preventDefault()
 setLoading(true)
@@ -185,12 +154,13 @@ const data = {
   name,
   parent: parent || null,
   isActive,
-  properties: properties.map(p => ({
-    name: p.name,
-    type: p.type,
-    values: p.values.split(",").map((v: string) => v.trim()),
-    isFilterable: true
-  }))
+  properties,
+  // properties: properties.map(p => ({
+  //   name: p.name,
+  //   type: p.type,
+  //   values: p.values.split(",").map((v: string) => v.trim()),
+  //   isFilterable: true
+  // }))
 }
 
 try {
@@ -220,6 +190,8 @@ try {
   setProperties([])
   setEditingCategory(null)
   setParentSearch("") 
+  setSearchProperty("")
+  setSearchCategory("") 
   setIsActive(true)
   await fetchCategories(1)
 
@@ -233,7 +205,9 @@ setLoading(false)
 }
 
 function editCategory(cat: any) {
-  setEditingCategory(cat)
+  const clone = JSON.parse(JSON.stringify(cat)) // 🔥 FIX clone
+  setEditingCategory(clone) // 🔥 FIX
+  setProperties((clone.properties || []).map((id:any)=>id.toString())) // 🔥 FIX
   setShowEditModal(true)
 }
 
@@ -253,9 +227,12 @@ async function deleteCategory(id: string) {
   await fetchCategories(1)
 
 }
-
+const options = allProperties.map(p => ({
+  label: p.name,
+  value: p._id.toString()
+}))
 function handleSelect(item: any) {
-  setSearch(item.name)
+  setSearchCategory(item.name)
   setShowDropdown(false)
   
   setCategories([])
@@ -402,70 +379,14 @@ return (
         </div>
 
         {/* properties */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-lg">Properties</h3>
-
-            <button
-              type="button"
-              onClick={addProperty}
-              className="bg-blue-200 px-3 py-1 rounded hover:bg-blue-300 cursor-pointer"
-            >
-              + Add property
-            </button>
-          </div>
-          {properties.length > 0 && (
-            <div className="grid grid-cols-12 gap-3 mb-2 text-sm text-gray-500">
-                <div className="col-span-3">Name</div>
-                <div className="col-span-2">Type</div>
-                <div className="col-span-5">Values</div>
-                <div className="col-span-2"></div>
-            </div>
-          )}
-          {properties.map((prop, index) => (
-            
-            <div key={index} className="grid grid-cols-12 gap-3 items-center mb-2">
-              
-              <input
-                value={prop.name}
-                onChange={ev =>
-                  updateProperty(index, "name", ev.target.value)
-                }
-                placeholder="Property name"
-                className="border rounded col-span-3 "
-              />
-
-              <select
-                value={prop.type}
-                onChange={ev =>
-                  updateProperty(index, "type", ev.target.value)
-                }
-                className="border rounded p-2 col-span-2 mb-4"
-              >
-                <option value="text">Text</option>
-                <option value="select">Select</option>
-              </select>
-
-              <input
-                value={prop.values}
-                onChange={ev =>
-                  updateProperty(index, "values", ev.target.value)
-                }
-                placeholder="Values (comma separated)"
-                className="border rounded col-span-5"
-              />
-
-              <button
-                type="button"
-                onClick={() => removeProperty(index)}
-                className="btn-delete col-span-2 p-2"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-
+        
+        {/* <PropertyDropdown properties={properties} setProperties={setProperties}/> */}
+        <MultiSelect
+          options={options}
+          value={properties}
+          onChange={setProperties}
+          placeholder="Search properties..."
+        />
         <div className="flex justify-center gap-2 mt-4">
           <button
             disabled={loading}
@@ -473,23 +394,6 @@ return (
           >
             {loading ? "Saving..." : "Save Category"}
           </button>
-
-          {/* {editingCategory && ( 
-            <button
-              type="button"
-              onClick={() => {
-                setName("")
-                setParent("")
-                setProperties([])
-                setEditingCategory(null)
-                setParentSearch("")
-                router.push("/categories")
-              }}
-              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 cursor-pointer"
-            >
-              Cancel
-            </button>
-          )} */}
         </div>
       </form>
     </div>
@@ -510,11 +414,11 @@ return (
   {/* 🔥 SEARCH */} 
     <div className="mb-4 flex items-center gap-2"> 
       <div className="relative w-80 search-box"> 
-        <input value={search} onChange={e => { 
-          setSearch(e.target.value) 
+        <input value={searchCategory} onChange={e => { 
+          setSearchCategory(e.target.value) 
           setShowDropdown(true) }} 
           placeholder="Search category..." 
-          className="border rounded px-3 h-[40px] w-full pr-8" 
+          className="border rounded px-3 h-[50px] w-full pr-8" 
           onFocus={() => setShowDropdown(true)} 
           onKeyDown={e => { 
             if (e.key === "Enter") { 
@@ -523,14 +427,14 @@ return (
               setHasMore(true) 
               setShowDropdown(false) } }} 
             /> {/* ✅ FIX CLEAR BUTTON */} 
-        {search && ( 
+        {searchCategory && ( 
           <button 
             onClick={() => { 
-            setSearch("") 
+            setSearchCategory("") 
             setCategories([]) 
             setPage(1) 
             setHasMore(true) }} 
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black" > 
+            className="absolute h-[50px] right-2 inset-y-0 flex items-center text-gray-400 hover:text-black cursor-pointer" > 
             ✕ 
           </button> )} 
           {/* DROPDOWN */} 
@@ -647,15 +551,17 @@ return (
       onClose={() => {
         setShowEditModal(false)
         setEditingCategory(null) // 🔥 FIX
+        setProperties([]) 
       }}
       category={editingCategory}
+      properties={properties}
+      setProperties={setProperties}
       onSave={async (data: any) => {
         await fetch(`/api/categories/${editingCategory._id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data)
         })
-
         toast.success("Updated")
 
         setShowEditModal(false)

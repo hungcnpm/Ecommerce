@@ -418,104 +418,224 @@ const categories = [
       ]
     }
   ]
-
-function getPropertiesByCategory(name) {
+const properties = [
+    { name: "Color", values: ["Black", "White", "Blue"], isVariant: true },
+    { name: "Size", values: ["S", "M", "L"], isVariant: true },
+    { name: "Brand", values: ["Apple", "Samsung"] },
+    { name: "Material", values: ["Cotton", "Leather"] },
+    { name: "RAM", values: ["4GB", "8GB"], isVariant: true },
+    { name: "Storage", values: ["64GB", "128GB"], isVariant: true }
+  ]
+  function getPropertiesByCategory(name) {
     const map = {
-      "Điện Thoại & Phụ Kiện": [
+  
+      // 📱 ĐIỆN THOẠI
+      "Điện thoại": [
         { name: "Brand", values: ["Apple", "Samsung", "Xiaomi", "Oppo"] },
-        { name: "Ram", values: ["4", "6", "8", "12", "16"] },
-        { name: "Memory", values: ["64", "128", "256", "512"] },
+        { name: "RAM", values: ["4GB", "6GB", "8GB", "12GB", "16GB"] },
+        { name: "Storage", values: ["64GB", "128GB", "256GB", "512GB"] },
         { name: "Color", values: ["Black", "White", "Blue", "Purple", "Gold"] },
         { name: "Screen Size", values: ["5.5", "6.1", "6.7"] },
-        { name: "Battery", values: ["3000", "4000", "5000"] },
+        { name: "Battery", values: ["3000mAh", "4000mAh", "5000mAh"] },
         { name: "Camera", values: ["12MP", "48MP", "108MP"] },
         { name: "Chip", values: ["A15", "A16", "Snapdragon 8"] },
-        { name: "Sim", values: ["1 SIM", "2 SIM"] },
+        { name: "SIM", values: ["1 SIM", "2 SIM", "eSIM"] },
         { name: "OS", values: ["iOS", "Android"] },
-        { name: "Warranty", values: ["6 months", "12 months"] },
         { name: "Condition", values: ["New", "Like New"] }
       ],
   
-      "Máy Tính & Laptop": [
+      // 📱 TABLET
+      "Laptop": [
+        { name: "Brand", values: ["Apple", "Samsung", "Xiaomi"] },
+        { name: "Screen Size", values: ["8", "10", "11", "12.9"] },
+        { name: "Storage", values: ["64GB", "128GB", "256GB"] },
+        { name: "RAM", values: ["4GB", "6GB", "8GB"] },
+        { name: "Battery", values: ["5000mAh", "7000mAh", "10000mAh"] }
+      ],
+  
+      // 🔋 PIN DỰ PHÒNG
+      "Pin Dự Phòng": [
+        { name: "Capacity", values: ["5000mAh", "10000mAh", "20000mAh"] },
+        { name: "Output", values: ["10W", "18W", "30W"] },
+        { name: "Brand", values: ["Anker", "Xiaomi", "Baseus"] }
+      ],
+  
+      // 🔌 SẠC + CÁP
+      "Pin Gắn Trong, Cáp và Bộ Sạc": [
+        { name: "Type", values: ["Cáp", "Củ sạc", "Combo"] },
+        { name: "Port", values: ["USB-A", "USB-C", "Lightning"] },
+        { name: "Power", values: ["10W", "18W", "30W", "65W"] }
+      ],
+  
+      // 📱 ỐP / BAO DA
+      "Ốp lưng, bao da, Miếng dán điện thoại": [
+        { name: "Compatible", values: ["iPhone", "Samsung", "Xiaomi"] },
+        { name: "Material", values: ["Silicone", "Nhựa", "Da"] },
+        { name: "Color", values: ["Black", "Transparent", "Blue"] }
+      ],
+  
+      // 🛡️ DÁN MÀN
+      "Bảo vệ màn hình": [
+        { name: "Type", values: ["Cường lực", "Nhám", "Chống nhìn trộm"] },
+        { name: "Compatible", values: ["iPhone", "Samsung"] }
+      ],
+  
+      // 📱 ĐẾ GIỮ
+      "Đế giữ điện thoại": [
+        { name: "Type", values: ["Ô tô", "Bàn", "Kẹp"] },
+        { name: "Material", values: ["Nhựa", "Kim loại"] }
+      ],
+  
+      // 💾 THẺ NHỚ
+      "Thẻ nhớ": [
+        { name: "Capacity", values: ["32GB", "64GB", "128GB", "256GB"] },
+        { name: "Type", values: ["microSD", "SD"] }
+      ],
+  
+      // 📶 SIM
+      "Sim": [
+        { name: "Type", values: ["4G", "5G"] },
+        { name: "Provider", values: ["Viettel", "Mobifone", "Vinaphone"] }
+      ],
+  
+      // 💻 LAPTOP
+      "Laptop": [
         { name: "Brand", values: ["Dell", "HP", "Asus", "Apple"] },
-        { name: "CPU", values: ["i3", "i5", "i7", "i9", "Ryzen 5", "Ryzen 7"] },
-        { name: "Ram", values: ["8", "16", "32", "64"] },
-        { name: "Storage", values: ["256GB", "512GB", "1TB", "2TB"] },
-        { name: "GPU", values: ["Integrated", "RTX 3050", "RTX 3060"] },
-        { name: "Screen Size", values: ["13", "14", "15.6", "17"] },
-        { name: "Resolution", values: ["FHD", "2K", "4K"] },
-        { name: "Refresh Rate", values: ["60Hz", "120Hz", "144Hz"] },
-        { name: "Weight", values: ["1kg", "1.5kg", "2kg"] },
-        { name: "Battery", values: ["4h", "6h", "10h"] },
-        { name: "OS", values: ["Windows", "MacOS"] },
-        { name: "Warranty", values: ["12 months", "24 months"] }
+        { name: "CPU", values: ["i5", "i7", "i9", "Ryzen 5", "Ryzen 7"] },
+        { name: "RAM", values: ["8GB", "16GB", "32GB"] },
+        { name: "Storage", values: ["256GB", "512GB", "1TB"] },
+        { name: "GPU", values: ["Integrated", "RTX 3050", "RTX 4060"] },
+        { name: "Screen Size", values: ["13", "14", "15.6", "17"] }
       ],
   
-      "Thời Trang Nam": [
-        { name: "Size", values: ["S", "M", "L", "XL", "XXL"] },
-        { name: "Color", values: ["Black", "White", "Blue", "Gray"] },
-        { name: "Material", values: ["Cotton", "Polyester", "Denim"] },
-        { name: "Fit", values: ["Slim", "Regular", "Oversize"] },
-        { name: "Style", values: ["Casual", "Sport", "Formal"] },
-        { name: "Sleeve", values: ["Short", "Long"] },
-        { name: "Season", values: ["Summer", "Winter"] },
-        { name: "Origin", values: ["Vietnam", "China"] },
-        { name: "Brand", values: ["Local", "Nike", "Adidas"] },
-        { name: "Pattern", values: ["Plain", "Printed"] }
-      ],
-  
-      "Thời Trang Nữ": [
+      // 👕 THỜI TRANG NAM
+      "Áo": [
         { name: "Size", values: ["S", "M", "L", "XL"] },
-        { name: "Color", values: ["Black", "White", "Pink", "Red"] },
-        { name: "Material", values: ["Cotton", "Silk", "Linen"] },
-        { name: "Style", values: ["Casual", "Sexy", "Office"] },
-        { name: "Length", values: ["Short", "Midi", "Long"] },
-        { name: "Sleeve", values: ["Short", "Long", "Sleeveless"] },
-        { name: "Fit", values: ["Slim", "Loose"] },
-        { name: "Season", values: ["Summer", "Winter"] },
-        { name: "Brand", values: ["Local", "Zara"] }
+        { name: "Color", values: ["Black", "White", "Blue"] },
+        { name: "Material", values: ["Cotton", "Poly"] }
       ],
   
-      "Giày Dép Nam": [
-        { name: "Size", values: ["38", "39", "40", "41", "42", "43"] },
-        { name: "Color", values: ["Black", "Brown", "White"] },
-        { name: "Material", values: ["Leather", "Canvas"] },
-        { name: "Type", values: ["Sneaker", "Boot", "Sandal"] },
+      // 👟 GIÀY NAM
+      "Giày Thể Thao/ Sneakers": [
+        { name: "Size", values: ["38", "39", "40", "41", "42"] },
         { name: "Brand", values: ["Nike", "Adidas"] },
-        { name: "Style", values: ["Sport", "Casual"] },
-        { name: "Origin", values: ["Vietnam", "China"] }
+        { name: "Color", values: ["Black", "White"] }
       ],
   
-      "Giày Dép Nữ": [
-        { name: "Size", values: ["35", "36", "37", "38", "39"] },
-        { name: "Color", values: ["Black", "Beige", "Pink"] },
-        { name: "Material", values: ["Leather", "Fabric"] },
-        { name: "Heel", values: ["Flat", "5cm", "7cm"] },
-        { name: "Type", values: ["Heel", "Sneaker", "Sandal"] },
-        { name: "Brand", values: ["Nike", "Zara"] }
+      // 🕒 ĐỒNG HỒ
+      "Đồng Hồ Nam": [
+        { name: "Brand", values: ["Casio", "Seiko"] },
+        { name: "Strap", values: ["Leather", "Steel"] },
+        { name: "Movement", values: ["Quartz", "Automatic"] }
       ],
-  
-      "Đồng Hồ": [
-        { name: "Brand", values: ["Casio", "Rolex", "Seiko"] },
-        { name: "Gender", values: ["Nam", "Nữ"] },
-        { name: "Strap", values: ["Leather", "Steel", "Rubber"] },
-        { name: "Water Resistance", values: ["3ATM", "5ATM", "10ATM"] },
-        { name: "Movement", values: ["Quartz", "Automatic"] },
-        { name: "Glass", values: ["Sapphire", "Mineral"] }
+      "Ba Lô Nam": [
+        { name: "Material", values: ["Canvas", "Polyester", "Leather"] },
+        { name: "Capacity", values: ["15L", "20L", "30L"] },
+        { name: "Color", values: ["Black", "Gray", "Blue"] },
+        { name: "Style", values: ["Casual", "Travel"] }
       ],
-  
-      "Thiết Bị Điện Tử": [
-        { name: "Brand", values: ["Sony", "Samsung", "LG"] },
-        { name: "Type", values: ["TV", "Speaker", "Headphone"] },
-        { name: "Power", values: ["20W", "50W", "100W"] },
-        { name: "Connectivity", values: ["Bluetooth", "WiFi"] },
-        { name: "Warranty", values: ["6 months", "12 months"] },
-        { name: "Origin", values: ["Vietnam", "China"] }
+
+      "Túi Đeo Chéo Nam": [
+        { name: "Material", values: ["Leather", "Canvas"] },
+        { name: "Color", values: ["Black", "Brown"] },
+        { name: "Size", values: ["Small", "Medium"] }
+      ],
+
+      "Bóp/Ví Nam": [
+        { name: "Material", values: ["Leather", "PU"] },
+        { name: "Color", values: ["Black", "Brown"] },
+        { name: "Type", values: ["Bifold", "Trifold"] }
+      ],
+      "Đồ ăn vặt": [
+        { name: "Flavor", values: ["Sweet", "Spicy", "Salty"] },
+        { name: "Weight", values: ["100g", "200g", "500g"] },
+        { name: "Origin", values: ["VN", "KR", "JP"] }
+      ],
+
+      "Đồ uống": [
+        { name: "Type", values: ["Nước ngọt", "Trà", "Cà phê"] },
+        { name: "Volume", values: ["330ml", "500ml", "1L"] },
+        { name: "Sugar", values: ["Có đường", "Không đường"] }
+      ],
+      "Thức ăn cho thú cưng": [
+        { name: "Pet Type", values: ["Dog", "Cat"] },
+        { name: "Weight", values: ["1kg", "5kg"] },
+        { name: "Age", values: ["Puppy", "Adult"] }
+      ],
+
+      "Phụ kiện cho thú cưng": [
+        { name: "Type", values: ["Collar", "Leash", "Toy"] },
+        { name: "Material", values: ["Nylon", "Leather"] }
+      ],
+      "Dụng cụ cầm tay": [
+        { name: "Type", values: ["Hammer", "Screwdriver"] },
+        { name: "Material", values: ["Steel"] }
+      ],
+
+      "Thiết bị mạch điện": [
+        { name: "Voltage", values: ["220V", "110V"] },
+        { name: "Type", values: ["Switch", "Socket"] }
+      ],
+      "Đồ chơi giải trí": [
+        { name: "Age", values: ["3+", "6+", "12+"] },
+        { name: "Material", values: ["Plastic", "Wood"] }
+      ],
+      "Đồng Hồ Nữ": [
+        { name: "Brand", values: ["Casio", "Daniel Wellington"] },
+        { name: "Color", values: ["Gold", "Rose Gold"] },
+        { name: "Strap", values: ["Leather", "Steel"] }
+      ],
+      "Vệ sinh nhà cửa": [
+        { name: "Type", values: ["Nước lau", "Bột"] },
+        { name: "Volume", values: ["500ml", "1L"] }
+      ],
+      "Linh Kiện Máy Tính": [
+        { name: "Type", values: ["CPU", "GPU", "RAM"] },
+        { name: "Brand", values: ["Intel", "AMD", "Nvidia"] }
+      ],
+
+      "Màn Hình": [
+        { name: "Size", values: ["24", "27", "32"] },
+        { name: "Resolution", values: ["FHD", "2K", "4K"] },
+        { name: "Refresh Rate", values: ["60Hz", "144Hz"] }
+      ],
+      "Ống kính": [
+        { name: "Mount", values: ["Canon", "Sony"] },
+        { name: "Focal Length", values: ["24mm", "50mm"] }
+      ],
+      "Tã & bô em bé": [
+        { name: "Size", values: ["S", "M", "L", "XL"] },
+        { name: "Type", values: ["Dán", "Quần"] }
+      ],
+      "Đèn": [
+        { name: "Type", values: ["LED", "Decor"] },
+        { name: "Power", values: ["5W", "10W"] }
+      ],
+      "Sách Tiếng Việt": [
+        { name: "Genre", values: ["Novel", "Business"] },
+        { name: "Language", values: ["Vietnamese"] }
+      ],
+      "Mũ bảo hiểm": [
+        { name: "Size", values: ["M", "L", "XL"] },
+        { name: "Type", values: ["Fullface", "3/4"] }
+      ],
+      "Chăm sóc da mặt": [
+        { name: "Skin Type", values: ["Oily", "Dry"] },
+        { name: "Type", values: ["Cleanser", "Serum"] }
+      ],
+      "Giày Thể Thao": [
+        { name: "Size", values: ["39", "40", "41"] },
+        { name: "Brand", values: ["Nike", "Adidas"] }
+      ],
+      "Du lịch & Khách sạn": [
+        { name: "Location", values: ["Đà Nẵng", "Phú Quốc"] },
+        { name: "Duration", values: ["2N1Đ", "3N2Đ"] }
       ]
+              
     };
   
     return map[name] || [];
-}
+  }
 // 🔥 slugify (xịn, bỏ dấu tiếng Việt)
 function slugify(str) {
   return str
@@ -546,7 +666,7 @@ async function insertCategory(
     level,
     path,
     isActive: true,
-    properties: getPropertiesByCategory(category.name),
+    properties: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -580,7 +700,9 @@ async function seed() {
   for (const category of categories) {
     await insertCategory(db, category);
   }
-
+  console.log("🌱 Seeding properties...");
+  await db.collection("properties").deleteMany({});
+  await db.collection("properties").insertMany(properties);
   console.log("✅ DONE!");
   process.exit();
 }

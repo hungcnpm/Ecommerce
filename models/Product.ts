@@ -9,7 +9,16 @@ const ProductSchema = new Schema({
   category:{type:mongoose.Types.ObjectId,ref:"Category"},
   brand: {type: String, default: "GEN" },
   properties:{
-    type:Object
+    property: {
+      type: mongoose.Types.ObjectId,
+      ref: "Property",
+      required: true
+    },
+    value: {
+      type: String,
+      required: true
+    }
+
   },
   variants: [
     {

@@ -1,4 +1,3 @@
-// FINAL UI IMPROVED ProductForm
 "use client";
 
 import { useState, useEffect } from "react";
@@ -33,12 +32,14 @@ export default function ProductForm({
   const [categories, setCategories] = useState<any[]>([]);
   const [category, setCategory] = useState(
     existingCategory?._id?.toString?.() || existingCategory || ""
+  );  
+  const [productProperties, setProductProperties] = useState(
+    existingProperties || []
   );
-  const [productProperties, setProductProperties] = useState(existingProperties || {});
   const [variants, setVariants] = useState(existingVariants || []);
   const [brand, setBrand] = useState(existingBrand ||"");
   const [propSearch, setPropSearch] = useState("");
-
+  const [categoryProperties, setCategoryProperties] = useState([])
   useEffect(() => {
     axios.get("/api/categories?limit=9999").then(res => {
       setCategories(res.data.data || []);
@@ -48,15 +49,22 @@ export default function ProductForm({
   const selectedCategory = categories.find(
     c => c._id?.toString() === category?.toString()
   );
-
-  const categoryProperties = selectedCategory?.properties || [];
-
   useEffect(() => {
-    if (!_id) {
-      setProductProperties({});
+    if (!category) return
+  
+    axios
+      .get(`/api/categories/${category}/properties`)
+      .then(res => {
+        setCategoryProperties(res.data)
+      })
+  }, [category])
+  const variantProps = categoryProperties.filter(p => p.isVariant)
+  useEffect(() => {
+    if (!_id && categoryProperties.length) {
+      setProductProperties([]);
       setVariants([]);
     }
-  }, [category]);
+  }, [categoryProperties]);
 
   function addVariant() {
     setVariants(prev => [...prev, { price: "", stock: "", attributes: {} }]);
@@ -99,7 +107,7 @@ export default function ProductForm({
     if (!categoryProperties.length) return;
   
     // fix undefined values
-    const lists = categoryProperties.map((p: any) => p.values || []);
+    const lists = variantProps.map((p: any) => p.values || []);
   
     function cartesian(arr: any[]): any[] {
       return arr.reduce(
@@ -115,7 +123,7 @@ export default function ProductForm({
       const attributes: any = {};
   
       combo.forEach((value, i) => {
-        attributes[categoryProperties[i].name] = value;
+        attributes[variantProps[i].name] = value;
       });
   
       return {
@@ -171,6 +179,7 @@ export default function ProductForm({
 
     router.push("/products");
   }
+  
   return (
     <form onSubmit={saveProduct} className="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
 
@@ -202,6 +211,7 @@ export default function ProductForm({
       </div>
 
       {categoryProperties.length > 0 && (
+        
         <div className="border rounded-lg bg-white shadow-sm">
           
           {/* HEADER */}
@@ -219,31 +229,55 @@ export default function ProductForm({
           <div className="max-h-[300px] overflow-y-auto p-3">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
 
-              {categoryProperties
-                .filter(p =>
-                  p.name.toLowerCase().includes(propSearch.toLowerCase())
-                )
-                .map((prop: any) => (
-                  <div key={prop.name}>
-                    <label className="text-xs text-gray-500">{prop.name}</label>
+            {categoryProperties
+              .filter(p =>
+                p.name.toLowerCase().includes(propSearch.toLowerCase())
+              )
+              .map((prop: any) => {
+                const existing = productProperties.find(
+                  (p: any) =>
+                    p.property?.toString() === prop._id?.toString()
+                );
+
+                return (
+                  <div key={prop._id}>
+                    <label className="text-xs text-gray-500">
+                      {prop.name}
+                    </label>
 
                     <select
-                      value={productProperties[prop.name] || ""}
-                      onChange={e =>
-                        setProductProperties(prev => ({
-                          ...prev,
-                          [prop.name]: e.target.value
-                        }))
-                      }
+                      value={existing?.value || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+
+                        setProductProperties((prev: any[]) => {
+                          const filtered = prev.filter(
+                            (p) =>
+                              p.property?.toString() !==
+                              prop._id?.toString()
+                          );
+
+                          return [
+                            ...filtered,
+                            {
+                              property: prop._id,
+                              value,
+                            },
+                          ];
+                        });
+                      }}
                       className="w-full border rounded px-2 py-1 text-sm"
                     >
                       <option value="">Select</option>
                       {prop.values.map((v: any) => (
-                        <option key={v}>{v}</option>
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
                       ))}
                     </select>
                   </div>
-                ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -301,7 +335,7 @@ export default function ProductForm({
 
                 {/* ATTRIBUTES */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {categoryProperties.map((prop: any) => (
+                  {variantProps.map((prop: any) => (
                     <div key={prop.name}>
                       <label className="text-xs text-gray-500 mb-1 block">
                         {prop.name}

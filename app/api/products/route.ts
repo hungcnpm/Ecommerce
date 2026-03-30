@@ -55,22 +55,10 @@ export async function POST(req: Request) {
     }
 
     // 🔥 validate properties
-    const validProperties: any = {}
-
-    for (const prop of category.properties || []) {
-      const value = body.properties?.[prop.name]
-
-      if (value) {
-        if (prop.type === "select" && !prop.values.includes(value)) {
-          return NextResponse.json(
-            { error: `Invalid value for ${prop.name}` },
-            { status: 400 }
-          )
-        }
-
-        validProperties[prop.name] = value
-      }
-    }
+    const validProperties = (body.properties || []).map((p: any) => ({
+      property: new ObjectId(p.property),
+      value: p.value
+    }));
     const prefix = category?.skuPrefix || "SKU";
     const brand = body.brand || "GEN"; // 👈 thêm brand
     const variants = [];
@@ -100,9 +88,10 @@ export async function POST(req: Request) {
       title: body.title,
       description: body.description,
       price: Number(body.price),
+      brand: body.brand || "GEN", // 👈 thêm brand
       images: body.images,
       category: new ObjectId(body.category),
-      properties: body.properties || {},
+      properties: validProperties || {},
       variants,
       createdAt: new Date(),
       updatedAt: new Date(),
