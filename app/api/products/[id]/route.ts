@@ -1,21 +1,23 @@
-import clientPromise from "@/lib/mongodb"
-import { NextResponse } from "next/server"
-import { ObjectId } from "mongodb"
-import { getNextSKU, generateSKUEnterprise } from "@/lib/sku";
+import clientPromise from "@/lib/mongodb";
+import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
+import { getNextSKU, generateSKUProMax } from "@/lib/sku";
 
 export async function GET(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params
+  const { id } = await context.params;
 
-  // ✅ validate product id
   if (!ObjectId.isValid(id)) {
-    return NextResponse.json({ error: "Invalid product id" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid product id" },
+      { status: 400 }
+    );
   }
 
-  const client = await clientPromise
-  const db = client.db("ecommerce")
+  const client = await clientPromise;
+  const db = client.db("ecommerce");
 
   const product = await db.collection("products").aggregate([
     {
@@ -34,65 +36,89 @@ export async function GET(
         path: "$category",
         preserveNullAndEmptyArrays: true
       }
+    },
+    // 🔥 attributes → property
+    {
+      $lookup: {
+        from: "properties",
+        localField: "attributes.property",
+        foreignField: "_id",
+        as: "propertyDetails"
+      }
+    },
+    // 🔥 attributes → value
+    {
+      $lookup: {
+        from: "propertyvalues",
+        localField: "attributes.value",
+        foreignField: "_id",
+        as: "valueDetails"
+      }
+    },
+    // 🔥 variants
+    {
+      $lookup: {
+        from: "variants",
+        localField: "_id",
+        foreignField: "product",
+        as: "variants"
+      }
     }
-  ]).toArray()
+  ]).toArray();
 
-  return NextResponse.json(product[0])
+  return NextResponse.json(product[0]);
 }
 
 export async function PUT(req: Request, context: any) {
-  const { id } = await context.params
-  const body = await req.json()
+  const { id } = await context.params;
+  const body = await req.json();
 
-  // ✅ validate product id
   if (!ObjectId.isValid(id)) {
-    return NextResponse.json({ error: "Invalid product id" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid product id" },
+      { status: 400 }
+    );
   }
 
-  // ✅ validate category id (FIX LỖI CHÍNH)
   if (!body.category || !ObjectId.isValid(body.category)) {
     return NextResponse.json(
       { error: "Invalid category id" },
       { status: 400 }
-    )
+    );
   }
 
-  const client = await clientPromise
-  const db = client.db("ecommerce")
+  const client = await clientPromise;
+  const db = client.db("ecommerce");
 
-  const categoryId = new ObjectId(body.category)
+  const categoryId = new ObjectId(body.category);
 
-  // 🔥 lấy category
   const category = await db.collection("categories").findOne({
     _id: categoryId
-  })
+  });
 
   if (!category) {
-    return NextResponse.json({ error: "Category not found" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Category not found" },
+      { status: 400 }
+    );
   }
-
-  // 🔥 validate properties
-  const validProperties = (body.properties || []).map((p: any) => ({
-    property: new ObjectId(p.property),
-    value: p.value
+  // 🔥 attributes
+  const validAttributes = (body.attributes || []).map((a: any) => ({
+    property: new ObjectId(a.property),
+    value: new ObjectId(a.value)
   }));
+  const variantProps = Array.isArray(category?.properties)
+  ? category.properties.filter((p: any) => p.isVariant)
+  : [];
 
-  const prefix = category?.skuPrefix || "SKU";
-  const variants = [];
-
-  for (let v of body.variants || []) {
-    if (!v.sku) {
-      const newId = await getNextSKU(db);
-      v.sku = generateSKUEnterprise(v.attributes, prefix, newId);
-    }
-
-    variants.push({
-      ...v,
-      price: Number(v.price),
-      stock: Number(v.stock),
-    });
+  // ❗ nếu có variantProps mà không có variants → lỗi
+  if (variantProps.length > 0 && (!body.variants || body.variants.length === 0)) {
+    return NextResponse.json(
+      { error: "Variants required for this category" },
+      { status: 400 }
+    );
   }
-
+  // 🔥 update product
   await db.collection("products").updateOne(
     { _id: new ObjectId(id) },
     {
@@ -101,36 +127,116 @@ export async function PUT(req: Request, context: any) {
         description: body.description,
         price: Number(body.price),
         images: body.images,
-        category: categoryId, // ✅ dùng lại biến đã validate
-        properties: validProperties, // ✅ dùng validated data
-        brand: body.brand || "GEN", // 👈 thêm brand
-        variants, 
+        brand: body.brand || "GEN",
+        category: categoryId,
+        attributes: validAttributes,
         updatedAt: new Date(),
       },
     }
   );
+  function normalizeAttributes(attrs: any[]) {
+    return attrs.sort((a, b) =>
+      a.property.toString().localeCompare(b.property.toString())
+    );
+  }
+  // 🔥 reset variants
+  await db.collection("variants").deleteMany({
+    product: new ObjectId(id)
+  });
 
-  return NextResponse.json({ success: true })
+  const newVariants = [];
+
+  for (let v of body.variants || []) {
+    const skuId = await getNextSKU(db);
+  
+    // ✅ VALIDATE ATTRIBUTE ĐỦ
+    if (variantProps.length > 0) {
+      const keys = Object.keys(v.attributes || {});
+  
+      if (keys.length !== variantProps.length) {
+        throw new Error("Variant thiếu thuộc tính");
+      }
+  
+      for (let prop of variantProps) {
+        if (!v.attributes?.[prop._id.toString()]) {
+          throw new Error(`Variant thiếu thuộc tính ${prop.name}`);
+        }
+      }
+    }
+  
+    // ✅ MAP (KHÔNG FILTER)
+    let attrs = Object.entries(v.attributes || {}).map(([prop, val]) => {
+      if (!ObjectId.isValid(prop) || !ObjectId.isValid(val)) {
+        throw new Error("Invalid ObjectId");
+      }
+      return {
+        property: new ObjectId(prop),
+        value: new ObjectId(val)
+      };
+    });
+  
+    attrs = normalizeAttributes(attrs);
+  
+    const variantKey = attrs
+      .map(a => `${a.property}:${a.value}`)
+      .join("|");
+  
+    const exists = await db.collection("variants").findOne({
+      product: new ObjectId(id),
+      variantKey,
+    });
+  
+    if (exists) {
+      throw new Error("Duplicate variant");
+    }
+  
+    newVariants.push({
+      product: new ObjectId(id),
+      attributes: attrs,
+      sku: generateSKUProMax(
+        attrs,
+        category.skuPrefix || "SKU",
+        body.brand || "GEN",
+        skuId
+      ),
+      price: Number(v.price),
+      stock: Number(v.stock),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+  }
+
+  if (newVariants.length > 0) {
+    await db.collection("variants").insertMany(newVariants);
+  }
+
+  return NextResponse.json({ success: true });
 }
 
 export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params
+  const { id } = await context.params;
 
-  // ✅ validate id
   if (!ObjectId.isValid(id)) {
-    return NextResponse.json({ error: "Invalid product id" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid product id" },
+      { status: 400 }
+    );
   }
 
-  const client = await clientPromise
-  const db = client.db("ecommerce")
+  const client = await clientPromise;
+  const db = client.db("ecommerce");
 
   await db.collection("products").deleteOne({
     _id: new ObjectId(id),
-  })
+  });
 
-  return NextResponse.json({ success: true })
+  // 🔥 xoá luôn variants
+  await db.collection("variants").deleteMany({
+    product: new ObjectId(id)
+  });
+
+  return NextResponse.json({ success: true });
 }
-

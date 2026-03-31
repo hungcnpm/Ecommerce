@@ -1,6 +1,6 @@
 import clientPromise from "../lib/mongodb.mjs";
 
-// 🔥 RAW DATA
+// 🔥 ===== RAW DATA (giữ nguyên của bạn) =====
 const categories = [
     {
       name: "Balo & Túi Ví Nam",
@@ -418,14 +418,9 @@ const categories = [
       ]
     }
   ]
-const properties = [
-    { name: "Color", values: ["Black", "White", "Blue"], isVariant: true },
-    { name: "Size", values: ["S", "M", "L"], isVariant: true },
-    { name: "Brand", values: ["Apple", "Samsung"] },
-    { name: "Material", values: ["Cotton", "Leather"] },
-    { name: "RAM", values: ["4GB", "8GB"], isVariant: true },
-    { name: "Storage", values: ["64GB", "128GB"], isVariant: true }
-  ]
+
+// 🔥 ===== PROPERTY MAP =====
+
   function getPropertiesByCategory(name) {
     const map = {
   
@@ -636,7 +631,11 @@ const properties = [
   
     return map[name] || [];
   }
-// 🔥 slugify (xịn, bỏ dấu tiếng Việt)
+// 🔥 slug
+import clientPromise from "../lib/mongodb.mjs";
+
+// ================== UTILS ==================
+
 function slugify(str) {
   return str
     .toLowerCase()
@@ -646,18 +645,85 @@ function slugify(str) {
     .replace(/[^\w-]+/g, "");
 }
 
-// 🔥 insert recursive (FIX FULL)
+// ================== PROPERTY MAP ==================
+
+function getPropertiesByCategory(name) {
+  const map = {
+    "Điện thoại": [
+      { name: "Brand", values: ["Apple", "Samsung"], isVariant: false },
+      { name: "RAM", values: ["4GB", "8GB", "12GB"], isVariant: true },
+      { name: "Storage", values: ["128GB", "256GB"], isVariant: true },
+      { name: "Color", values: ["Black", "White", "Blue"], isVariant: true }
+    ],
+
+    "Laptop": [
+      { name: "Brand", values: ["Dell", "HP", "Apple"], isVariant: false },
+      { name: "RAM", values: ["8GB", "16GB"], isVariant: true },
+      { name: "Storage", values: ["256GB", "512GB"], isVariant: true }
+    ],
+
+    "Áo": [
+      { name: "Size", values: ["S", "M", "L"], isVariant: true },
+      { name: "Color", values: ["Black", "White"], isVariant: true },
+      { name: "Material", values: ["Cotton"], isVariant: false }
+    ]
+  };
+
+  return map[name] || [];
+}
+
+// ================== EXTRACT PROPERTIES ==================
+
+function extractAllProperties() {
+  const all = {};
+
+  const categoriesToScan = [
+    "Điện thoại",
+    "Laptop",
+    "Áo"
+  ];
+
+  for (const cat of categoriesToScan) {
+    const props = getPropertiesByCategory(cat);
+
+    for (const p of props) {
+      if (!all[p.name]) {
+        all[p.name] = {
+          name: p.name,
+          values: new Set(),
+          isVariant: p.isVariant ?? true
+        };
+      }
+
+      p.values?.forEach(v => all[p.name].values.add(v));
+    }
+  }
+
+  return Object.values(all).map(p => ({
+    name: p.name,
+    values: Array.from(p.values),
+    isVariant: p.isVariant
+  }));
+}
+
+// ================== INSERT CATEGORY ==================
+
 async function insertCategory(
   db,
   category,
+  propMap,
   parent = null,
   parentPath = "",
   level = 0
 ) {
   const slug = slugify(category.name);
-
-  // 🔥 build path string
   const path = parentPath ? `${parentPath}/${slug}` : slug;
+
+  const propDefs = getPropertiesByCategory(category.name);
+
+  const propIds = propDefs
+    .map(p => propMap[p.name])
+    .filter(Boolean);
 
   const res = await db.collection("categories").insertOne({
     name: category.name,
@@ -666,45 +732,153 @@ async function insertCategory(
     level,
     path,
     isActive: true,
-    properties: [],
+    properties: propIds,
     createdAt: new Date(),
-    updatedAt: new Date(),
+    updatedAt: new Date()
   });
 
   const currentId = res.insertedId;
 
-  // 🔥 children
-  if (category.children && category.children.length > 0) {
+  if (category.children) {
     for (const child of category.children) {
-      await insertCategory(
-        db,
-        child,
-        currentId,
-        path,
-        level + 1
-      );
+      await insertCategory(db, child, propMap, currentId, path, level + 1);
     }
   }
 }
 
-// 🔥 seed
+// ================== GENERATE VARIANTS ==================
+
+function cartesianProduct(arr) {
+  return arr.reduce(
+    (a, b) => a.flatMap(d => b.map(e => [...d, e])),
+    [[]]
+  );
+}
+
+// ================== SEED PRODUCTS ==================
+
+async function seedProducts(db) {
+  console.log("📦 Seeding products...");
+
+  const category = await db.collection("categories").findOne({
+    name: "Điện thoại"
+  });
+
+  const properties = await db.collection("properties").find({
+    name: { $in: ["RAM", "Storage", "Color"] }
+  }).toArray();
+
+  const propMap = {};
+  properties.forEach(p => {
+    propMap[p.name] = p._id;
+  });
+
+  const values = await db.collection("propertyvalues").find({
+    property: { $in: Object.values(propMap) }
+  }).toArray();
+
+  const grouped = {};
+
+  values.forEach(v => {
+    const key = v.property.toString();
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(v);
+  });
+
+  const product = await db.collection("products").insertOne({
+    title: "iPhone 15 Pro Max",
+    basePrice: 1200,
+    brand: "Apple",
+    category: category._id,
+    properties: Object.values(propMap),
+    images: [],
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  const combos = cartesianProduct(Object.values(grouped));
+
+  const variants = combos.map((combo, i) => ({
+    product: product.insertedId,
+    sku: `IP15-${i}`,
+    price: 1200 + i * 50,
+    stock: 50,
+
+    attributes: combo.map(v => ({
+      property: v.property,
+      value: v._id
+    })),
+
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }));
+
+  await db.collection("variants").insertMany(variants);
+
+  console.log("🔥 Variants:", variants.length);
+}
+
+// ================== MAIN SEED ==================
+
 async function seed() {
   const client = await clientPromise;
   const db = client.db("ecommerce");
 
-  console.log("🧹 Clearing old categories...");
+  console.log("🧹 Clearing...");
   await db.collection("categories").deleteMany({});
-
-  console.log("🌱 Seeding categories...");
-
-  for (const category of categories) {
-    await insertCategory(db, category);
-  }
-  console.log("🌱 Seeding properties...");
   await db.collection("properties").deleteMany({});
-  await db.collection("properties").insertMany(properties);
-  console.log("✅ DONE!");
+  await db.collection("propertyvalues").deleteMany({});
+  await db.collection("products").deleteMany({});
+  await db.collection("variants").deleteMany({});
+
+  console.log("🌱 Extracting properties...");
+  const allProps = extractAllProperties();
+
+  // 🔥 insert properties
+  const propDocs = allProps.map(p => ({
+    name: p.name,
+    isVariant: p.isVariant,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }));
+
+  const result = await db.collection("properties").insertMany(propDocs);
+
+  const propMap = {};
+  propDocs.forEach((p, i) => {
+    propMap[p.name] = result.insertedIds[i];
+  });
+
+  // 🔥 insert values
+  const valueDocs = [];
+
+  allProps.forEach(p => {
+    const propId = propMap[p.name];
+
+    p.values.forEach(val => {
+      valueDocs.push({
+        property: propId,
+        value: val,
+        slug: slugify(val),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    });
+  });
+
+  await db.collection("propertyvalues").insertMany(valueDocs);
+
+  // 🔥 categories (GIỮ DATA CỦA BẠN)
+  for (const category of categories) {
+    await insertCategory(db, category, propMap);
+  }
+
+  // 🔥 products + variants
+  await seedProducts(db);
+
+  console.log("✅ DONE");
   process.exit();
 }
 
 seed();
+

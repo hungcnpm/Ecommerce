@@ -7,6 +7,7 @@ export async function getNextSKU(db: any) {
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" }
   );
+  console.log("Counter result:", result);
 
   return result?.seq;
 }
@@ -20,7 +21,7 @@ export function generateSKUEnterprise(
     .map((v: any) => v.toString().slice(0, 3).toUpperCase())
     .join("-");
 
-  return `${prefix}-${attrPart}-${id}`;
+  return `${prefix}-${attrPart}-${id}`; 
 }
 function getDateCode() {
     const d = new Date();

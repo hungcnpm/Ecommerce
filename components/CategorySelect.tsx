@@ -20,8 +20,18 @@ export default function CategorySelect({
       .then(data => {
         setCategories(data.data || [])
       })
-  }, [])
-
+  }, [])  
+  useEffect(() => {
+    if (value && categories.length) {
+      const found = categories.find(
+        c => c._id?.toString() === value?.toString()
+      )
+  
+      if (found) {
+        setSearch(found.name)
+      }
+    }
+  }, [value, categories])
   useEffect(() => {
     function handleClick(e:any){
       if(!e.target.closest(".category-select")){
@@ -57,7 +67,7 @@ export default function CategorySelect({
         }}
         onFocus={() => {
           // 👉 nếu chưa có search thì lấy từ selected
-          if (!search && selected) {
+          if (!search && selected) {  
             setSearch(selected.name)
           }
           setShowDropdown(true)
@@ -84,11 +94,11 @@ export default function CategorySelect({
             <div
               key={cat._id}
               onClick={() => {
-                onChange(cat._id)
+                onChange(cat._id.toString())
                 setSearch(cat.name) // 👉 giữ lại text luôn
                 setShowDropdown(false)
               }}
-              className={`px-3 py-2 cursor-pointer ${value === cat._id ? "bg-blue-100" : "hover:bg-blue-50"}`}
+              className={`px-3 py-2 cursor-pointer ${value?.toString() === cat._id?.toString() ? "bg-blue-100" : "hover:bg-blue-50"}`}
             >
               <span className="text-gray-400">
                 {"— ".repeat(cat.level || 0)}

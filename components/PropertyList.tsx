@@ -41,12 +41,12 @@ export default function PropertyList() {
                 <div className="font-medium text-gray-800">{p.name}</div>
 
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {p.values.map((v: string) => (
+                  {p.values.map((v: any) => (
                     <span
-                      key={v}
+                      key={v._id}
                       className="px-2 py-1 text-xs bg-gray-100 rounded-md"
                     >
-                      {v}
+                      {v.value}
                     </span>
                   ))}
                 </div>
