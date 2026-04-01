@@ -1,16 +1,13 @@
 import mongoose, { Schema, model, models } from "mongoose";
-const ProductSchema = new Schema(
+
+const VariantSchema = new Schema(
   {
-    title: { type: String, required: true },
-    description: String,
-    price: Number,
-    images: [String],
-    category: {
+    product: {
       type: mongoose.Types.ObjectId,
-      ref: "Category"
+      ref: "Product",
+      required: true
     },
-    brand: { type: String, default: "GEN" },
-    // 🔥 attributes (không phải properties nữa)
+
     attributes: [
       {
         property: {
@@ -24,9 +21,16 @@ const ProductSchema = new Schema(
           required: true
         }
       }
-    ]
+    ],
+
+    sku: { type: String, required: true, unique: true },
+
+    price: Number,
+    stock: { type: Number, default: 0 }
   },
   { timestamps: true }
 );
-export const Product =
-  models.Product || model("Product", ProductSchema);
+
+export const Variant =
+  models.Variant || model("Variant", VariantSchema);
+
