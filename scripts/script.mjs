@@ -632,8 +632,6 @@ const categories = [
     return map[name] || [];
   }
 // 🔥 slug
-import clientPromise from "../lib/mongodb.mjs";
-
 // ================== UTILS ==================
 
 function slugify(str) {
@@ -647,30 +645,30 @@ function slugify(str) {
 
 // ================== PROPERTY MAP ==================
 
-function getPropertiesByCategory(name) {
-  const map = {
-    "Điện thoại": [
-      { name: "Brand", values: ["Apple", "Samsung"], isVariant: false },
-      { name: "RAM", values: ["4GB", "8GB", "12GB"], isVariant: true },
-      { name: "Storage", values: ["128GB", "256GB"], isVariant: true },
-      { name: "Color", values: ["Black", "White", "Blue"], isVariant: true }
-    ],
+// function getPropertiesByCategory(name) {
+//   const map = {
+//     "Điện thoại": [
+//       { name: "Brand", values: ["Apple", "Samsung"], isVariant: false },
+//       { name: "RAM", values: ["4GB", "8GB", "12GB"], isVariant: true },
+//       { name: "Storage", values: ["128GB", "256GB"], isVariant: true },
+//       { name: "Color", values: ["Black", "White", "Blue"], isVariant: true }
+//     ],
 
-    "Laptop": [
-      { name: "Brand", values: ["Dell", "HP", "Apple"], isVariant: false },
-      { name: "RAM", values: ["8GB", "16GB"], isVariant: true },
-      { name: "Storage", values: ["256GB", "512GB"], isVariant: true }
-    ],
+//     "Laptop": [
+//       { name: "Brand", values: ["Dell", "HP", "Apple"], isVariant: false },
+//       { name: "RAM", values: ["8GB", "16GB"], isVariant: true },
+//       { name: "Storage", values: ["256GB", "512GB"], isVariant: true }
+//     ],
 
-    "Áo": [
-      { name: "Size", values: ["S", "M", "L"], isVariant: true },
-      { name: "Color", values: ["Black", "White"], isVariant: true },
-      { name: "Material", values: ["Cotton"], isVariant: false }
-    ]
-  };
+//     "Áo": [
+//       { name: "Size", values: ["S", "M", "L"], isVariant: true },
+//       { name: "Color", values: ["Black", "White"], isVariant: true },
+//       { name: "Material", values: ["Cotton"], isVariant: false }
+//     ]
+//   };
 
-  return map[name] || [];
-}
+//   return map[name] || [];
+// }
 
 // ================== EXTRACT PROPERTIES ==================
 
@@ -680,7 +678,31 @@ function extractAllProperties() {
   const categoriesToScan = [
     "Điện thoại",
     "Laptop",
-    "Áo"
+    "Áo",
+    "Giày Thể Thao/ Sneakers",
+    "Đồng Hồ Nam",
+    "Ba Lô Nam",
+    "Túi Đeo Chéo Nam",
+    "Bóp/Ví Nam",
+    "Đồ ăn vặt",
+    "Đồ uống",
+    "Thức ăn cho thú cưng",
+    "Phụ kiện cho thú cưng",
+    "Dụng cụ cầm tay",
+    "Thiết bị mạch điện",
+    "Đồ chơi giải trí",
+    "Đồng Hồ Nữ",
+    "Vệ sinh nhà cửa",
+    "Linh Kiện Máy Tính",
+    "Màn Hình",
+    "Ống kính",
+    "Tã & bô em bé",
+    "Đèn",
+    "Sách Tiếng Việt",
+    "Mũ bảo hiểm",
+    "Chăm sóc da mặt",
+    "Giày Thể Thao",
+    "Du lịch & Khách sạn",
   ];
 
   for (const cat of categoriesToScan) {
@@ -758,66 +780,214 @@ function cartesianProduct(arr) {
 // ================== SEED PRODUCTS ==================
 
 async function seedProducts(db) {
-  console.log("📦 Seeding products...");
+  console.log("🔥 PRODUCTION SEED START...");
 
-  const category = await db.collection("categories").findOne({
-    name: "Điện thoại"
-  });
+  const categories = await db.collection("categories")
+    .find({ level: { $gte: 1 } })
+    .toArray();
 
-  const properties = await db.collection("properties").find({
-    name: { $in: ["RAM", "Storage", "Color"] }
-  }).toArray();
+  const properties = await db.collection("properties").find().toArray();
+  const values = await db.collection("propertyvalues").find().toArray();
 
   const propMap = {};
-  properties.forEach(p => {
-    propMap[p.name] = p._id;
-  });
+  properties.forEach(p => propMap[p._id.toString()] = p);
 
-  const values = await db.collection("propertyvalues").find({
-    property: { $in: Object.values(propMap) }
-  }).toArray();
-
-  const grouped = {};
-
+  const valueGrouped = {};
   values.forEach(v => {
     const key = v.property.toString();
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(v);
+    if (!valueGrouped[key]) valueGrouped[key] = [];
+    valueGrouped[key].push(v);
   });
 
-  const product = await db.collection("products").insertOne({
-    title: "iPhone 15 Pro Max",
-    basePrice: 1200,
-    brand: "Apple",
-    category: category._id,
-    properties: Object.values(propMap),
-    images: [],
-    createdAt: new Date(),
-    updatedAt: new Date()
-  });
+  // ===== DATA POOLS =====
+  const MODELS = {
+    "Điện thoại": [
+      { name: "iPhone 15 Pro Max", brand: "Apple", base: 1200 },
+      { name: "Galaxy S23 Ultra", brand: "Samsung", base: 1100 },
+    ],
+    "Laptop": [
+      { name: "Macbook Air M2", brand: "Apple", base: 1300 },
+      { name: "Dell XPS 13", brand: "Dell", base: 1200 },
+    ],
+    "Áo": [
+      { name: "Áo Thun Basic", brand: "Local Brand", base: 10 },
+    ],
+    "Ba Lô": [
+      { name: "Balo Du Lịch", brand: "Generic", base: 20 }
+    ]
+  };
 
-  const combos = cartesianProduct(Object.values(grouped));
+  function random(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
 
-  const variants = combos.map((combo, i) => ({
-    product: product.insertedId,
-    sku: `IP15-${i}`,
-    price: 1200 + i * 50,
-    stock: 50,
+  function pickModel(catName) {
+    for (let key in MODELS) {
+      if (catName.includes(key)) return random(MODELS[key]);
+    }
+    return { name: catName, brand: "Generic", base: 20 };
+  }
 
-    attributes: combo.map(v => ({
-      property: v.property,
-      value: v._id
-    })),
+  function normalizeAttrs(attrs) {
+    return attrs.sort((a, b) =>
+      a.property.toString().localeCompare(b.property.toString())
+    );
+  }
 
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }));
+  function buildVariantKey(attrs) {
+    return attrs
+      .map(a => `${a.property}:${a.value}`)
+      .sort()
+      .join("|");
+  }
 
-  await db.collection("variants").insertMany(variants);
+  function generateDescription(name) {
+    return `
+🔥 ${name} chính hãng
+✔️ Bảo hành uy tín
+✔️ Chất lượng cao cấp
+🚚 Giao hàng toàn quốc
 
-  console.log("🔥 Variants:", variants.length);
+📦 Thông tin sản phẩm:
+- Thiết kế hiện đại
+- Độ bền cao
+- Phù hợp nhu cầu sử dụng hàng ngày
+`;
+  }
+
+  function fakeImages(name) {
+    const slug = slugify(name);
+    return [
+      `https://picsum.photos/seed/${slug}-1/500/500`,
+      `https://picsum.photos/seed/${slug}-2/500/500`
+    ];
+  }
+
+  let totalProducts = 0;
+
+  for (let i = 0; i < 100; i++) {
+    const category = random(categories);
+
+    const catProps = category.properties || [];
+
+    // 🔥 skip category không có property
+    if (!catProps.length) continue;
+
+    const model = pickModel(category.name);
+
+    const variantProps = [];
+    const normalProps = [];
+
+    catProps.forEach(pId => {
+      const p = propMap[pId.toString()];
+      if (!p) return;
+      p.isVariant ? variantProps.push(p) : normalProps.push(p);
+    });
+
+    // 🔥 ATTRIBUTES FIX
+    const productAttributes = normalProps
+      .map(p => {
+        const vals = valueGrouped[p._id.toString()] || [];
+        if (!vals.length) return null;
+
+        const val = random(vals);
+
+        return {
+          property: p._id,
+          value: val._id,
+          name: p.name,
+          valueLabel: val.value
+        };
+      })
+      .filter(Boolean);
+
+    // ===== CREATE PRODUCT =====
+    const title = `${model.name} ${random(["Chính hãng", "Giá tốt", "Sale sốc"])}`;
+
+    const productRes = await db.collection("products").insertOne({
+      title,
+      description: generateDescription(title),
+      slug: slugify(title + "-" + i),
+      brand: model.brand,
+      category: category._id,
+
+      // 🔥 FIX PRICE
+      price: model.base,
+
+      images: fakeImages(title),
+
+      attributes: productAttributes,
+      properties: catProps,
+
+      rating: +(Math.random() * 2 + 3).toFixed(1),
+      sold: Math.floor(Math.random() * 1000),
+      discount: Math.floor(Math.random() * 30),
+
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    const productId = productRes.insertedId;
+
+    // ===== CREATE VARIANTS =====
+    if (variantProps.length > 0) {
+      const arrays = variantProps.map(p =>
+        valueGrouped[p._id.toString()] || []
+      );
+
+      const combos = cartesianProduct(arrays);
+
+      const seen = new Set();
+      const variants = [];
+
+      for (let combo of combos) {
+        let attrs = combo.map(v => ({
+          property: v.property,
+          value: v._id
+        }));
+
+        attrs = normalizeAttrs(attrs);
+
+        const key = buildVariantKey(attrs);
+
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        let price = model.base;
+
+        combo.forEach(v => {
+          const val = v.value.toLowerCase();
+
+          if (val.includes("256")) price += 100;
+          if (val.includes("512")) price += 200;
+          if (val.includes("16gb")) price += 150;
+          if (val.includes("xl")) price += 5;
+        });
+
+        variants.push({
+          product: productId,
+          sku: `SKU-${i}-${variants.length}`,
+          price,
+          stock: Math.floor(Math.random() * 100),
+          attributes: attrs,
+          variantKey: key,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+
+        if (variants.length >= 12) break;
+      }
+
+      if (variants.length > 0) {
+        await db.collection("variants").insertMany(variants);
+      }
+    }
+
+    totalProducts++;
+  }
+
+  console.log(`🚀 DONE: ${totalProducts} products`);
 }
-
 // ================== MAIN SEED ==================
 
 async function seed() {
@@ -865,14 +1035,14 @@ async function seed() {
       });
     });
   });
-
+  console.log("🌱 Adding property values...");
   await db.collection("propertyvalues").insertMany(valueDocs);
-
+  console.log("🌱 Adding category...");
   // 🔥 categories (GIỮ DATA CỦA BẠN)
   for (const category of categories) {
     await insertCategory(db, category, propMap);
   }
-
+  console.log("🌱 Adding Products and variants...");
   // 🔥 products + variants
   await seedProducts(db);
 

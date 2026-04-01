@@ -107,16 +107,27 @@ export async function PUT(req: Request, context: any) {
     property: new ObjectId(a.property),
     value: new ObjectId(a.value)
   }));
-  const variantProps = Array.isArray(category?.properties)
-  ? category.properties.filter((p: any) => p.isVariant)
-  : [];
-
+  const properties = await db.collection("properties").find({
+    _id: { $in: category.properties.map((id: string) => new ObjectId(id)) }
+  }).toArray();
+  const variantProps = properties.filter(p => p.isVariant);
   // ❗ nếu có variantProps mà không có variants → lỗi
   if (variantProps.length > 0 && (!body.variants || body.variants.length === 0)) {
     return NextResponse.json(
       { error: "Variants required for this category" },
       { status: 400 }
     );
+  }
+  const hasVariant = variantProps.length > 0;
+  if (!hasVariant) {
+    // 🔥 XÓA variant cũ trong DB
+    await db.collection("variants").deleteMany({
+      product: new ObjectId(id),
+    });
+    body.variants = [];
+    if (!body.price || isNaN(Number(body.price))) {
+      throw new Error("Invalid price");
+    }
   }
   // 🔥 update product
   await db.collection("products").updateOne(
@@ -125,7 +136,10 @@ export async function PUT(req: Request, context: any) {
       $set: {
         title: body.title,
         description: body.description,
-        price: Number(body.price),
+        ...(hasVariant ? {} : { price: Number(body.price) }),
+
+        minPrice: 0,
+        maxPrice: 0,
         images: body.images,
         brand: body.brand || "GEN",
         category: categoryId,
@@ -151,30 +165,32 @@ export async function PUT(req: Request, context: any) {
   
     // ✅ VALIDATE ATTRIBUTE ĐỦ
     if (variantProps.length > 0) {
-      const keys = Object.keys(v.attributes || {});
-  
-      if (keys.length !== variantProps.length) {
+      if ((v.attributes || []).length !== variantProps.length) {
         throw new Error("Variant thiếu thuộc tính");
       }
-  
+      
       for (let prop of variantProps) {
-        if (!v.attributes?.[prop._id.toString()]) {
+        const found = v.attributes.find(
+          (a: any) => a.property === prop._id.toString()
+        );
+      
+        if (!found) {
           throw new Error(`Variant thiếu thuộc tính ${prop.name}`);
         }
       }
     }
   
     // ✅ MAP (KHÔNG FILTER)
-    let attrs = Object.entries(v.attributes || {}).map(([prop, val]) => {
-      if (!ObjectId.isValid(prop) || !ObjectId.isValid(val)) {
+    let attrs = (v.attributes || []).map((a: any) => {
+      if (!ObjectId.isValid(a.property) || !ObjectId.isValid(a.value)) {
         throw new Error("Invalid ObjectId");
       }
+    
       return {
-        property: new ObjectId(prop),
-        value: new ObjectId(val)
+        property: new ObjectId(a.property),
+        value: new ObjectId(a.value),
       };
     });
-  
     attrs = normalizeAttributes(attrs);
   
     const variantKey = attrs
@@ -209,7 +225,20 @@ export async function PUT(req: Request, context: any) {
   if (newVariants.length > 0) {
     await db.collection("variants").insertMany(newVariants);
   }
-
+  if (newVariants.length > 0) {
+    const prices = newVariants.map(v => v.price);
+  
+    await db.collection("products").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          price: hasVariant?"":Number(body.price),
+          minPrice: Math.min(...prices),
+          maxPrice: Math.max(...prices),
+        },
+      }
+    );
+  }
   return NextResponse.json({ success: true });
 }
 

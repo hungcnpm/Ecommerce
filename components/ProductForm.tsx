@@ -53,7 +53,13 @@ export default function ProductForm({
   }, [category]);
 
   const variantProps = categoryProperties.filter((p) => p.isVariant);
-
+  const nonVariantProps = categoryProperties.filter(p => !p.isVariant);
+  const hasVariant = variantProps.length > 0;
+  useEffect(() => {
+    if (!hasVariant) {
+      setVariants([]);
+    }
+  }, [hasVariant]);
   useEffect(() => {
   // ❗ chỉ reset khi tạo mới, KHÔNG phải edit
     if (!_id) {
@@ -223,105 +229,125 @@ export default function ProductForm({
 
     setVariants(newVariants);
   }
-
+  function mapVariantAttributes(attrsObj: any) {
+    return Object.entries(attrsObj || {}).map(([property, value]) => ({
+      property,
+      value,
+    }));
+  } 
   async function saveProduct(e: any) {
     e.preventDefault();
-  
-    // 🔥 BASIC VALIDATE
-    if (!title.trim()) {
-      toast.error("Product name is required");
-      return;
-    }
-  
+  //#region validate data
+    // 🔥 BASIC
+  if (!title.trim()) {
+    toast.error("Product name is required");
+    return;
+  }
+
+  if (!category) {
+    toast.error("Please select category");
+    return;
+  }
+
+  if (!images || images.length === 0) {
+    toast.error("Please upload at least 1 image");
+    return;
+  }
+
+  // 🔥 NON-VARIANT ATTRIBUTES
+  const missingAttr = nonVariantProps.find(
+    p =>
+      !productAttributes.find(
+        a => a.property === p._id.toString() && a.value
+      )
+  );
+
+  if (missingAttr) {
+    toast.error(`Thiếu thuộc tính: ${missingAttr.name}`);
+    return;
+  }
+
+  // 🔥 CASE: KHÔNG CÓ VARIANT
+  if (variantProps.length === 0) {
     if (!price || isNaN(Number(price))) {
-      toast.error("Invalid base price");
+      toast.error("Price không hợp lệ");
       return;
     }
-  
-    if (!category) {
-      toast.error("Please select category");
+  }
+
+  // 🔥 CASE: CÓ VARIANT
+  if (variantProps.length > 0) {
+    if (!variants || variants.length === 0) {
+      toast.error("Chưa có variant");
       return;
     }
-      for (const p of categoryProperties) {
-        const found = productAttributes.find(
-          (a) => a.property === p._id.toString()
-        );
-    
-        if (!found || !found.value) {
-          toast.error(`Chưa chọn ${p.name}`);
-          return;
-        }
-      }
-    if (!images || images.length === 0) {
-      toast.error("Please upload at least 1 image");
+
+  const seen = new Set();
+
+  for (let i = 0; i < variants.length; i++) {
+    const v = variants[i];
+
+    // price + stock
+    if (
+      v.price === "" ||
+      v.stock === "" ||
+      isNaN(Number(v.price)) ||
+      isNaN(Number(v.stock))
+    ) {
+      toast.error(`Variant #${i + 1} price/stock không hợp lệ`);
       return;
     }
-  
-    // 🔥 ATTRIBUTES (non-variant)
-    const nonVariantProps = categoryProperties.filter(p => !p.isVariant);
-  
-    const missingAttr = nonVariantProps.find(
-      p => !productAttributes.find(a => a.property === p._id)
-    );
-  
-    if (missingAttr) {
-      toast.error(`Thiếu thuộc tính: ${missingAttr.name}`);
+
+    const attrs = v.attributes || {};
+
+    // đủ số lượng attr
+    if (Object.keys(attrs).length !== variantProps.length) {
+      toast.error(`Variant #${i + 1} thiếu thuộc tính`);
       return;
     }
-  
-    // 🔥 VARIANT VALIDATE
-    if (variantProps.length > 0) {
-      if (!variants || variants.length === 0) {
-        toast.error("Chưa có variant");
+
+    // từng attr phải có value
+    for (const p of variantProps) {
+      const key = p._id.toString();
+      if (!attrs[key]) {
+        toast.error(`Variant #${i + 1} thiếu ${p.name}`);
         return;
       }
-  
-      for (let i = 0; i < variants.length; i++) {
-        const v = variants[i];
-  
-        // price + stock
-        if (
-          v.price === "" ||
-          v.stock === "" ||
-          isNaN(Number(v.price)) ||
-          isNaN(Number(v.stock))
-        ) {
-          toast.error(`Variant #${i + 1} có price/stock không hợp lệ`);
-          return;
-        }
-  
-        const attrs = v.attributes || {};
-  
-        // thiếu attribute
-        if (Object.keys(attrs).length !== variantProps.length) {
-          toast.error(`Variant #${i + 1} thiếu thuộc tính`);
-          return;
-        }
-  
-        // attribute rỗng
-        for (const p of variantProps) {
-          const key = p._id.toString();
-          if (!attrs[key]) {
-            toast.error(`Variant #${i + 1} thiếu ${p.name}`);
-            return;
-          }
-        }
-      }
     }
-  
+
+    // 🔥 CHECK DUPLICATE (QUAN TRỌNG)
+    const key = Object.entries(attrs)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${v}`)
+      .join("|");
+
+    if (seen.has(key)) {
+      toast.error(`Variant #${i + 1} bị trùng`);
+      return;
+    }
+
+    seen.add(key);
+  }
+}
+  //#endregion
     // 🔥 DATA
     const data = {
       title,
       description,
-      price,
       brand,
       images,
       category,
       attributes: productAttributes,
-      variants,
+      variants: variants.map(v => ({
+        attributes: mapVariantAttributes(v.attributes),
+        price: Number(v.price),
+        stock: Number(v.stock),
+      })),
+    
+      ...(variantProps.length === 0 && {
+        price: Number(price), // ,
+      }),
     };
-  
-  
     // 🔥 SAVE
     if (_id) {
       await axios.put(`/api/products/${_id}`, data);
@@ -333,174 +359,388 @@ export default function ProductForm({
   
     router.push("/products");
   }
-
   return (
-    <form onSubmit={saveProduct} className="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
-
-      {/* BASIC */}
-      <div>
-        <label className="text-sm font-medium">Product Name</label>
-        <input value={title} onChange={e => setTitle(e.target.value)} className={inputClass}/>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium">Description</label>
-        <textarea value={description} onChange={e => setDescription(e.target.value)} className={inputClass}/>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium">Price</label>
-        <input value={price} onChange={e => setPrice(e.target.value)} className={inputClass}/>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium">Brand</label>
-        <input value={brand} onChange={e => setBrand(e.target.value.toUpperCase())} className={inputClass}/>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium">Category</label>
-        <CategorySelect value={category} onChange={(newCat)=>{ 
-          if (variants.length > 0 || productAttributes.length > 0) {
-            const ok = confirm("Đổi category sẽ xoá variants & attributes. Tiếp tục?");
-            if (!ok) return;
-          }
+    <form onSubmit={saveProduct} className="max-w-7xl mx-auto px-6 py-6">
       
-          setCategory(newCat);
-        }}/>
-      </div>
-
-      {/* 🔥 ATTRIBUTES */}
-      {categoryProperties.length > 0 && (
-        <div className="border rounded-lg bg-white shadow-sm">
-
-          <div className="flex justify-between items-center p-3 border-b">
-            <h3 className="font-semibold">Properties</h3>
-
-            <input
-              placeholder="Search..."
-              onChange={(e)=>setPropSearch(e.target.value)}
-              className="border px-2 py-1 text-sm rounded w-40"
-            />
-          </div>
-
-          <div className="max-h-[300px] overflow-y-auto p-3">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-
-            {categoryProperties
-              .filter(p =>
-                p.name.toLowerCase().includes(propSearch.toLowerCase())
-              )
-              .map((prop: any) => {
-
-                const existing = productAttributes.find(
-                  (p: any) =>
-                    p.property?.toString() === prop._id?.toString()
-                );
-
-                return (
-                  <div key={prop._id}>
-                    <label className="text-xs text-gray-500">
-                      {prop.name}
-                    </label>
-
-                    <select
-                      value={existing?.value || ""}
-                      onChange={(e) =>
-                        updateAttribute(prop._id, e.target.value)
-                      }
-                      className="w-full border rounded px-2 py-1 text-sm"
-                    >
-                      <option value="">Select</option>
-
-                      {prop.values.map((v: any) => (
-                        <option key={v._id} value={v._id}>
-                          {v.value}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              })}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  
+        {/* LEFT */}
+        <div className="lg:col-span-2 space-y-6">
+  
+          {/* BASIC INFO */}
+          <div className="bg-white rounded-2xl shadow-sm border p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Basic Information</h2>
+  
+            <div>
+              <label className="label">Product Name</label>
+              <input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="input"
+              />
+            </div>
+  
+            <div>
+              <label className="label">Brand</label>
+              <input
+                value={brand}
+                onChange={e => setBrand(e.target.value.toUpperCase())}
+                className="input"
+              />
+            </div>
+  
+            <div>
+              <label className="label">Description</label>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="input min-h-[120px]"
+              />
+            </div>
+  
+            <div>
+              <label className="label">Category</label>
+              <CategorySelect
+                value={category}
+                onChange={(newCat) => {
+                  if (variants.length > 0 || productAttributes.length > 0) {
+                    const ok = confirm("Đổi category sẽ xoá variants & attributes. Tiếp tục?");
+                    if (!ok) return;
+                  }
+                  setCategory(newCat);
+                }}
+              />
             </div>
           </div>
-        </div>
-      )}
-
-      {/* 🔥 VARIANTS */}
-      <div>
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold">Variants</h3>
-          <div className="flex gap-2">
-            <button type="button" onClick={generateVariants} className="bg-green-500 hover:bg-green-700 text-white px-3 py-1 rounded text-sm cursor-pointer">Auto</button>
-            <button type="button" onClick={addVariant} className="bg-blue-500 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm cursor-pointer">+ Add</button>
+  
+          {/* PRICING */}
+          <div className="bg-white rounded-2xl shadow-sm border p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Pricing</h2>
+  
+            <input
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              disabled={hasVariant}
+              placeholder={
+                hasVariant
+                  ? "Price is set per variant"
+                  : "Enter product price"
+              }
+              className={`input ${
+                hasVariant ? "bg-gray-100 cursor-not-allowed" : ""
+              }`}
+            />
           </div>
-        </div>
-
-        {variants.length > 0 && (
-          <div className="mt-4 space-y-4">
-            {variants.map((v, i) => (
-              <div key={i} className="border rounded-xl p-4 bg-white shadow-sm">
-
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-medium text-sm">Variant #{i + 1}</span>
-                  <button type="button" onClick={() => removeVariant(i)} className="btn-delete text-sm">Remove</button>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {variantProps.map((prop: any) => (
+  
+          {/* ATTRIBUTES */}
+          {nonVariantProps.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Attributes</h2>
+  
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {nonVariantProps.map((prop: any) => {
+                  const existing = productAttributes.find(
+                    (p: any) =>
+                      p.property?.toString() === prop._id?.toString()
+                  );
+  
+                  return (
                     <div key={prop._id}>
-                      <label className="text-xs text-gray-500 mb-1 block">
-                        {prop.name}
-                      </label>
-
+                      <label className="label">{prop.name}</label>
                       <select
-                        value={v.attributes?.[prop._id.toString()] || ""}
+                        value={existing?.value || ""}
                         onChange={(e) =>
-                          updateVariantAttr(i, prop._id, e.target.value)
+                          updateAttribute(prop._id, e.target.value)
                         }
-                        className="w-full border rounded-md px-2 py-2 text-sm bg-white"
+                        className="input"
                       >
                         <option value="">Select</option>
-
-                        {prop.values.map((val: any) => (
-                          <option key={val._id} value={val._id}>
-                            {val.value}
+                        {prop.values.map((v: any) => (
+                          <option key={v._id} value={v._id}>
+                            {v.value}
                           </option>
                         ))}
                       </select>
                     </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <input
-                    value={v.price}
-                    onChange={(e) => updateVariant(i, "price", e.target.value)}
-                    placeholder="Price"
-                    className="border px-3 py-2 rounded-md"
-                  />
-                  <input
-                    value={v.stock}
-                    onChange={(e) => updateVariant(i, "stock", e.target.value)}
-                    placeholder="Stock"
-                    className="border px-3 py-2 rounded-md"
-                  />
-                </div>
-
+                  );
+                })}
               </div>
-            ))}
+            </div>
+          )}
+  
+          {/* VARIANTS */}
+          {variantProps.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Variants</h2>
+                <div className="flex gap-2">
+                  <button type="button" onClick={generateVariants} className="btn-success">
+                    Auto Generate
+                  </button>
+                  <button type="button" onClick={addVariant} className="btn-primary">
+                    + Add Variant
+                  </button>
+                </div>
+              </div>
+  
+              <div className="space-y-4">
+                {variants.map((v, i) => (
+                  <div key={i} className="border rounded-xl p-4 bg-gray-50">
+  
+                    <div className="flex justify-between mb-3">
+                      <span className="font-medium text-sm">Variant #{i + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(i)}
+                        className="btn-danger text-xs"
+                      >
+                        Remove
+                      </button>
+                    </div>
+  
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {variantProps.map((prop: any) => (
+                        <select
+                          key={prop._id}
+                          value={v.attributes?.[prop._id.toString()] || ""}
+                          onChange={(e) =>
+                            updateVariantAttr(i, prop._id, e.target.value)
+                          }
+                          className="input"
+                        >
+                          <option value="">{prop.name}</option>
+                          {prop.values.map((val: any) => (
+                            <option key={val._id} value={val._id}>
+                              {val.value}
+                            </option>
+                          ))}
+                        </select>
+                      ))}
+                    </div>
+  
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <input
+                        value={v.price}
+                        onChange={(e) => updateVariant(i, "price", e.target.value)}
+                        placeholder="Price"
+                        className="input"
+                      />
+                      <input
+                        value={v.stock}
+                        onChange={(e) => updateVariant(i, "stock", e.target.value)}
+                        placeholder="Stock"
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+  
+        </div>
+  
+        {/* RIGHT */}
+        <div className="space-y-6">
+  
+          {/* IMAGES */}
+          <div className="bg-white rounded-2xl shadow-sm border p-6">
+            <h2 className="text-lg font-semibold mb-4">Media</h2>
+            <ImagesUpload images={images} setImages={setImages} />
           </div>
-        )}
+  
+          {/* ACTION */}
+          <div className="bg-white rounded-2xl shadow-sm border p-6 space-y-3">
+            <button className="w-full btn-primary">Save Product</button>
+            <button
+              type="button"
+              onClick={() => router.push("/products")}
+              className="w-full btn-secondary"
+            >
+              Cancel
+            </button>
+          </div>
+  
+        </div>
+  
       </div>
-
-      <ImagesUpload images={images} setImages={setImages}/>
-
-      <div className="flex justify-center gap-2">
-        <button className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">Save</button>
-        <button type="button" onClick={()=>router.push("/products")} className="border px-4 py-2 rounded">Cancel</button>
-      </div>
-
     </form>
   );
+
+  // return (
+  //   <form onSubmit={saveProduct} className="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
+
+  //     {/* BASIC */}
+  //     <div>
+  //       <label className="text-sm font-medium">Product Name</label>
+  //       <input value={title} onChange={e => setTitle(e.target.value)} className={inputClass}/>
+  //     </div>
+  //     <div>
+  //       <label className="text-sm font-medium">Brand</label>
+  //       <input value={brand} onChange={e => setBrand(e.target.value.toUpperCase())} className={inputClass}/>
+  //     </div>
+  //     <div>
+  //       <label className="text-sm font-medium">Description</label>
+  //       <textarea value={description} onChange={e => setDescription(e.target.value)} className={inputClass}/>
+  //     </div>
+  //     <div>
+  //       <label className="text-sm font-medium">Category</label>
+  //       <CategorySelect value={category} onChange={(newCat)=>{ 
+  //         if (variants.length > 0 || productAttributes.length > 0) {
+  //           const ok = confirm("Đổi category sẽ xoá variants & attributes. Tiếp tục?");
+  //           if (!ok) return;
+  //         }
+      
+  //         setCategory(newCat);
+  //       }}/>
+  //     </div>
+  //     <div>
+  //       <label className="text-sm font-medium">Price</label>
+  //       <input 
+  //         value={price}
+  //         onChange={(e) => setPrice(e.target.value)}
+  //         disabled={hasVariant}
+  //         placeholder={
+  //           hasVariant
+  //             ? "Giá được thiết lập theo từng biến thể bên dưới"
+  //             : "Nhập giá sản phẩm"
+  //         }
+  //         className={`w-full border px-2 py-1 rounded ${
+  //           hasVariant ? "bg-gray-100 cursor-not-allowed" : ""
+  //         }`}
+  //       />
+  //     </div>
+
+      
+
+     
+
+  //     {/* 🔥 ATTRIBUTES */}
+  //     {nonVariantProps.length > 0 && (
+  //         <div className="border rounded-lg bg-white shadow-sm">
+
+  //           <div className="flex justify-between items-center p-3 border-b">
+  //             <h3 className="font-semibold">Properties</h3>
+  //           </div>
+
+  //         <div className="max-h-[300px] overflow-y-auto p-  3">
+  //           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+
+  //           {categoryProperties
+  //             .filter(p =>
+  //               !p.isVariant 
+  //             )
+  //             .map((prop: any) => {
+
+  //               const existing = productAttributes.find(
+  //                 (p: any) =>
+  //                   p.property?.toString() === prop._id?.toString()
+  //               );
+
+  //               return (
+  //                 <div key={prop._id}>
+  //                   <label className="text-xs text-gray-500">
+  //                     {prop.name}
+  //                   </label>
+
+  //                   <select
+  //                     value={existing?.value || ""}
+  //                     onChange={(e) =>
+  //                       updateAttribute(prop._id, e.target.value)
+  //                     }
+  //                     className="w-full border rounded px-2 py-1 text-sm"
+  //                   >
+  //                     <option value="">Select</option>
+
+  //                     {prop.values.map((v: any) => (
+  //                       <option key={v._id} value={v._id}>
+  //                         {v.value}
+  //                       </option>
+  //                     ))}
+  //                   </select>
+  //                 </div>
+  //               );
+  //             })}
+  //           </div>
+  //         </div>
+  //       </div>
+  //     )}
+
+  //     {/* 🔥 VARIANTS */}
+  //     {variantProps.length > 0 && (
+  //     <div>
+  //       <div className="flex justify-between items-center">
+  //         <h3 className="font-semibold">Variants</h3>
+  //         <div className="flex gap-2">
+  //           <button type="button" onClick={generateVariants} className="bg-green-500 hover:bg-green-700 text-white px-3 py-1 rounded text-sm cursor-pointer">Auto</button>
+  //           <button type="button" onClick={addVariant} className="bg-blue-500 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm cursor-pointer">+ Add</button>
+  //         </div>
+  //       </div>
+
+  //       {variants.length > 0 && (
+  //         <div className="mt-4 space-y-4">
+  //           {variants.map((v, i) => (
+  //             <div key={i} className="border rounded-xl p-4 bg-white shadow-sm">
+
+  //               <div className="flex justify-between items-center mb-3">
+  //                 <span className="font-medium text-sm">Variant #{i + 1}</span>
+  //                 <button type="button" onClick={() => removeVariant(i)} className="btn-delete text-sm">Remove</button>
+  //               </div>
+
+  //               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+  //                 {variantProps.map((prop: any) => (
+  //                   <div key={prop._id}>
+  //                     <label className="text-xs text-gray-500 mb-1 block">
+  //                       {prop.name}
+  //                     </label>
+
+  //                     <select
+  //                       value={v.attributes?.[prop._id.toString()] || ""}
+  //                       onChange={(e) =>
+  //                         updateVariantAttr(i, prop._id, e.target.value)
+  //                       }
+  //                       className="w-full border rounded-md px-2 py-2 text-sm bg-white"
+  //                     >
+  //                       <option value="">Select</option>
+
+  //                       {prop.values.map((val: any) => (
+  //                         <option key={val._id} value={val._id}>
+  //                           {val.value}
+  //                         </option>
+  //                       ))}
+  //                     </select>
+  //                   </div>
+  //                 ))}
+  //               </div>
+
+  //               <div className="grid grid-cols-2 gap-3 mt-4">
+  //                 <input
+  //                   value={v.price}
+  //                   onChange={(e) => updateVariant(i, "price", e.target.value)}
+  //                   placeholder="Price"
+  //                   className="border px-3 py-2 rounded-md"
+  //                 />
+  //                 <input
+  //                   value={v.stock}
+  //                   onChange={(e) => updateVariant(i, "stock", e.target.value)}
+  //                   placeholder="Stock"
+  //                   className="border px-3 py-2 rounded-md"
+  //                 />
+  //               </div>
+
+  //             </div>
+  //           ))}
+  //         </div>
+  //       )}
+  //     </div>
+  //     )}
+  //     <ImagesUpload images={images} setImages={setImages}/>
+
+  //     <div className="flex justify-center gap-2">
+  //       <button className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">Save</button>
+  //       <button type="button" onClick={()=>router.push("/products")} className="border px-4 py-2 rounded">Cancel</button>
+  //     </div>
+
+  //   </form>
+  // );
 }

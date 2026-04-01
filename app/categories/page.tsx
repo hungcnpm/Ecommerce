@@ -11,6 +11,7 @@ import MultiSelect from "@/components/MultiSelect"
 export default function CategoriesPage() {
 const router = useRouter()
 
+//#region states
 const [name, setName] = useState("")
 const [parent, setParent] = useState("")
 const [categories, setCategories] = useState<any[]>([])
@@ -38,8 +39,9 @@ const [allProperties, setAllProperties] = useState([])
 const [properties, setProperties] = useState([])
 const [searchCategory, setSearchCategory] = useState("")
 const [searchProperty, setSearchProperty] = useState("")
-
-
+const [expanded, setExpanded] = useState<string[]>([])
+//#endregion
+//#region useEffects
 useEffect(() => {
   fetchAllCategories()
 }, [])
@@ -74,7 +76,6 @@ useEffect(() => {
     setSuggestions([])
     return
   }
-
   fetchSuggestions(searchCategory)
   setShowDropdown(true)
 }, [searchCategory])
@@ -91,6 +92,26 @@ useEffect(() => {
   document.addEventListener("click", handleClick)
   return () => document.removeEventListener("click", handleClick)
 }, [])
+// 🔥 infinite scroll (IntersectionObserver)
+useEffect(() => {
+  const el = document.getElementById("load-more")
+  if (!el) return // 🔥 FIX
+
+  const observer = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting && hasMore && !loading) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      fetchCategories(nextPage)
+    }
+  })
+
+  observer.observe(el)
+
+  return () => observer.disconnect()
+}, [hasMore, loading, page])
+//#endregion
+
+//#region fetch data
 async function fetchSuggestions(keyword: string) {
   if (!keyword) {
     setSuggestions([])
@@ -128,82 +149,63 @@ async function fetchCategories(pageParam = page, keyword = searchCategory) {
 
   setLoading(false)
 }
+//#endregion
 
-// 🔥 infinite scroll (IntersectionObserver)
-useEffect(() => {
-  const el = document.getElementById("load-more")
-  if (!el) return // 🔥 FIX
-
-  const observer = new IntersectionObserver(entries => {
-    if (entries[0].isIntersecting && hasMore && !loading) {
-      const nextPage = page + 1
-      setPage(nextPage)
-      fetchCategories(nextPage)
-    }
-  })
-
-  observer.observe(el)
-
-  return () => observer.disconnect()
-}, [hasMore, loading, page])
 async function saveCategory(ev: any) {
-ev.preventDefault()
-setLoading(true)
+  ev.preventDefault()
+  setLoading(true)
 
-const data = {
-  name,
-  parent: parent || null,
-  isActive,
-  properties,
-  // properties: properties.map(p => ({
-  //   name: p.name,
-  //   type: p.type,
-  //   values: p.values.split(",").map((v: string) => v.trim()),
-  //   isFilterable: true
-  // }))
-}
-
-try {
-  if (editingCategory) {
-    await fetch(`/api/categories/${editingCategory._id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    })
-    toast.success("Category updated")
-  } else {
-    await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    })
-    toast.success("Category created")
+  const data = {
+    name,
+    parent: parent || null,
+    isActive,
+    properties,
+    // properties: properties.map(p => ({
+    //   name: p.name,
+    //   type: p.type,
+    //   values: p.values.split(",").map((v: string) => v.trim()),
+    //   isFilterable: true
+    // }))
   }
 
-  // 🔥 reset infinite scroll
-  setCategories([])
-  setPage(1)
-  setHasMore(true)
+  try {
+    if (editingCategory) {
+      await fetch(`/api/categories/${editingCategory._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+      toast.success("Category updated")
+    } else {
+      await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+      toast.success("Category created")
+    }
 
-  setName("")
-  setParent("")
-  setProperties([])
-  setEditingCategory(null)
-  setParentSearch("") 
-  setSearchProperty("")
-  setSearchCategory("") 
-  setIsActive(true)
-  await fetchCategories(1)
+    // 🔥 reset infinite scroll
+    setCategories([])
+    setPage(1)
+    setHasMore(true)
 
-} catch (error) {
-  toast.error("Something went wrong")
+    setName("")
+    setParent("")
+    setProperties([])
+    setEditingCategory(null)
+    setParentSearch("") 
+    setSearchProperty("")
+    setSearchCategory("") 
+    setIsActive(true)
+    await fetchCategories(1)
+    await fetchAllCategories() // 🔥 refresh lại list parent
+  } catch (error) {
+    toast.error("Something went wrong")
+  }
+  setLoading(false)
 }
-
-setLoading(false)
-
-
-}
-
+//#region actions
 function editCategory(cat: any) {
   const clone = JSON.parse(JSON.stringify(cat)) // 🔥 FIX clone
   setEditingCategory(clone) // 🔥 FIX
@@ -277,6 +279,121 @@ async function toggleActive(cat: any) {
 
   setUpdatingId(null)
 }
+//#endregion
+
+//#region tree view
+function toggleExpand(id: string) {
+  setExpanded(prev =>
+    prev.includes(id)
+      ? prev.filter(x => x !== id)
+      : [...prev, id]
+  )
+}
+// build tree từ list có sẵn (KHÔNG đụng API)
+function buildTree(list: any[], parent: any = null) {
+  return list
+    .filter(c => (c.parent?._id || c.parent) === parent)
+    .map(c => ({
+      ...c,
+      children: buildTree(list, c._id)
+    }))
+}
+function renderRow(cat: any, level = 0) {
+  const isOpen = expanded.includes(cat._id)
+
+  return (
+    <>
+      <tr
+        key={cat._id}
+        className={`border-t hover:bg-gray-50 transition ${
+          !cat.isActive ? "opacity-50" : ""
+        }`}
+      >
+        {/* NAME */}
+        <td className="px-4 py-3">
+          <div
+            className="flex items-center gap-2"
+            style={{ paddingLeft: level * 18 }}
+          >
+            {cat.children?.length > 0 && (
+              <button
+                onClick={() => toggleExpand(cat._id)}
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 transition"
+              >
+                <svg
+                  className={`w-4 h-4 transition-transform ${
+                    isOpen ? "rotate-90" : ""
+                  }`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M6 6L14 10L6 14V6Z" />
+                </svg>
+              </button>
+            )}
+
+            <span className="font-medium text-gray-800">
+              {cat.name}
+            </span>
+
+            {!cat.isActive && (
+              <span className="text-xs text-red-500 ml-2">
+                Hidden
+              </span>
+            )}
+          </div>
+        </td>
+
+        {/* PARENT */}
+        <td className="px-4 py-3 text-gray-500">
+          {cat.parent?.name || "-"}
+        </td>
+
+        {/* STATUS */}
+        <td className="px-4 py-3">
+          <label className="inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={cat.isActive}
+              onChange={() => toggleActive(cat)}
+              className="peer sr-only"
+            />
+
+            <div className="w-10 h-5 bg-gray-200 rounded-full relative peer-checked:bg-green-500 transition">
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
+            </div>
+          </label>
+        </td>
+
+        {/* ACTION */}
+        <td className="px-4 py-3 text-right">
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => editCategory(cat)}
+              className="btn-edit"
+            >
+              Edit
+            </button>
+
+            <button
+              onClick={() => setCategoryToDelete(cat)}
+              className="btn-delete"
+            >
+              Hide
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {/* CHILDREN */}
+      {isOpen &&
+        cat.children?.map((child: any) =>
+          renderRow(child, level + 1)
+        )}
+    </>
+  )
+}
+//#endregion
 return ( 
 <Layout> 
   <div className="flex justify-center"> 
@@ -465,62 +582,14 @@ return (
           </thead>
 
           <tbody>
-          {categories.filter(cat => {
-              if (statusFilter === "active") return cat.isActive
-              if (statusFilter === "hidden") return !cat.isActive
-              return true
-            }).map(cat => {
-              return (
-                <tr key={cat._id}
-                  className={`border-t hover:bg-gray-50 ${
-                  !cat.isActive ? "opacity-50" : ""
-                  }`}>
-                  <td>
-                  {"— ".repeat(cat.level || 0)} {cat.name}
-                  {!cat.isActive && (
-                    <span className="text-red-500 ml-2">(Hidden)</span>
-                  )}
-                  </td>
-
-                  <td>{cat.parent?.name || "-"}</td>
-                  <td>
-                  <label className="inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={cat.isActive}
-                      onChange={() => toggleActive(cat)}
-                      className="peer sr-only"
-                    />
-
-                    {/* track */}
-                    <div className="w-11 h-6 bg-gray-200 rounded-full transition-all relative peer-checked:bg-green-500 peer-checked:[&>div]:translate-x-5">
-
-                      {/* thumb */}
-                      <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-300"></div>
-
-                    </div>
-
-                  </label>
-                  </td>
-                  <td>
-                  <button
-                    onClick={() => editCategory(cat)}
-                    className="btn-edit"
-                  >
-                    Edit
-                  </button>
-
-                    <button
-                      onClick={() => setCategoryToDelete(cat)}
-                      className="btn-delete"
-                    >
-                      Hide
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
+            {buildTree(
+              categories.filter(cat => {
+                if (statusFilter === "active") return cat.isActive
+                if (statusFilter === "hidden") return !cat.isActive
+                return true
+              })
+            ).map(cat => renderRow(cat))}
+            </tbody>
         </table>
       
         {/* 🔥 load more trigger */}
