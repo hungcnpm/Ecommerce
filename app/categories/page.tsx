@@ -6,10 +6,9 @@ import ConfirmModal from "@/components/ConfirmModal"
 import toast from "react-hot-toast"
 import { useRouter } from "next/navigation"
 import EditCategoryModal from "@/components/EditCategoryModal"
-import PropertyDropdown from "@/components/PropertyDropdown"
 import MultiSelect from "@/components/MultiSelect"
+import { Fragment } from "react"
 export default function CategoriesPage() {
-const router = useRouter()
 
 //#region states
 const [name, setName] = useState("")
@@ -40,6 +39,7 @@ const [properties, setProperties] = useState([])
 const [searchCategory, setSearchCategory] = useState("")
 const [searchProperty, setSearchProperty] = useState("")
 const [expanded, setExpanded] = useState<string[]>([])
+const [selectedItem, setSelectedItem] = useState<any>(null)
 //#endregion
 //#region useEffects
 useEffect(() => {
@@ -61,6 +61,7 @@ const filteredParents = allCategories.filter(c =>
 )
 // reset khi search 
 useEffect(() => {
+  if (selectedItem && searchCategory === selectedItem.name ) return 
   const timer = setTimeout(() => {
     setCategories([])
     setPage(1)
@@ -74,8 +75,10 @@ useEffect(() => {
 useEffect(() => {
   if (!searchCategory) {
     setSuggestions([])
+    setShowDropdown(false)
     return
   }
+  setExpanded([])
   fetchSuggestions(searchCategory)
   setShowDropdown(true)
 }, [searchCategory])
@@ -109,6 +112,14 @@ useEffect(() => {
 
   return () => observer.disconnect()
 }, [hasMore, loading, page])
+useEffect(() => {
+  if (!searchCategory && statusFilter === "all") return
+
+  const tree = filterTreeAdvanced(buildTree(categories))
+  const ids = collectExpandedIds(tree)
+
+  setExpanded(ids)
+}, [searchCategory, statusFilter, categories])
 //#endregion
 
 //#region fetch data
@@ -162,7 +173,7 @@ async function saveCategory(ev: any) {
     properties,
     // properties: properties.map(p => ({
     //   name: p.name,
-    //   type: p.type,
+    //   type: p.type,  
     //   values: p.values.split(",").map((v: string) => v.trim()),
     //   isFilterable: true
     // }))
@@ -234,13 +245,12 @@ const options = allProperties.map(p => ({
   value: p._id.toString()
 }))
 function handleSelect(item: any) {
+  setSelectedItem(item) // 🔥 NEW
   setSearchCategory(item.name)
   setShowDropdown(false)
-  
-  setCategories([])
-  setPage(1)
-  setHasMore(true)
-  fetchCategories(1, item.name)
+
+  // 🔥 show luôn item (không gọi API nữa)
+  setCategories([item])
 }
 async function toggleActive(cat: any) {
   const newStatus = !cat.isActive
@@ -290,19 +300,23 @@ function toggleExpand(id: string) {
   )
 }
 // build tree từ list có sẵn (KHÔNG đụng API)
+function getParentId(c: any) {
+  return c.parent?._id?.toString?.() || c.parent?.toString?.() || null
+}
+
 function buildTree(list: any[], parent: any = null) {
   return list
-    .filter(c => (c.parent?._id || c.parent) === parent)
+    .filter(c => getParentId(c) === parent)
     .map(c => ({
       ...c,
-      children: buildTree(list, c._id)
+      children: buildTree(list, c._id.toString())
     }))
 }
 function renderRow(cat: any, level = 0) {
   const isOpen = expanded.includes(cat._id)
 
   return (
-    <>
+    <Fragment key={cat._id}>
       <tr
         key={cat._id}
         className={`border-t hover:bg-gray-50 transition ${
@@ -390,8 +404,61 @@ function renderRow(cat: any, level = 0) {
         cat.children?.map((child: any) =>
           renderRow(child, level + 1)
         )}
-    </>
+    </Fragment>
   )
+}
+function normalize(str: string) {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+function filterTreeAdvanced(tree: any[]) {
+  return tree
+    .map(node => {
+      const children = node.children
+        ? filterTreeAdvanced(node.children)
+        : []
+
+      const matchSearch = !searchCategory ||
+        normalize(node.name).includes(normalize(searchCategory))
+
+      const matchStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && node.isActive) ||
+        (statusFilter === "hidden" && !node.isActive)
+
+      const isMatch = matchSearch && matchStatus
+
+      // 🔥 giữ node nếu:
+      // - chính nó match
+      // - hoặc có con match
+      if (isMatch || children.length > 0) {
+        return {
+          ...node,
+          children
+        }
+      }
+
+      return null
+    })
+    .filter(Boolean)
+}
+function collectExpandedIds(tree: any[]) {
+  let ids: string[] = []
+
+  function traverse(nodes: any[]) {
+    for (const n of nodes) {
+      if (n.children && n.children.length > 0) {
+        ids.push(n._id)
+        traverse(n.children)
+      }
+    }
+  }
+
+  traverse(tree)
+  return ids
 }
 //#endregion
 return ( 
@@ -533,10 +600,11 @@ return (
       <div className="relative w-80 search-box"> 
         <input value={searchCategory} onChange={e => { 
           setSearchCategory(e.target.value) 
+          setSelectedItem(null)
           setShowDropdown(true) }} 
           placeholder="Search category..." 
           className="border rounded px-3 h-[50px] w-full pr-8" 
-          onFocus={() => setShowDropdown(true)} 
+          onFocus={() => {if(searchCategory) setShowDropdown(true)}} 
           onKeyDown={e => { 
             if (e.key === "Enter") { 
               setCategories([]) 
@@ -548,6 +616,7 @@ return (
           <button 
             onClick={() => { 
             setSearchCategory("") 
+            setSelectedItem(null)
             setCategories([]) 
             setPage(1) 
             setHasMore(true) }} 
@@ -555,7 +624,7 @@ return (
             ✕ 
           </button> )} 
           {/* DROPDOWN */} 
-          {showDropdown && suggestions.length > 0 && ( 
+          {showDropdown && searchCategory && suggestions.length > 0 && ( 
             <div className="absolute left-0 right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-auto"> 
             {suggestions.map(item => ( 
               <div key={item._id} 
@@ -582,14 +651,18 @@ return (
           </thead>
 
           <tbody>
-            {buildTree(
-              categories.filter(cat => {
-                if (statusFilter === "active") return cat.isActive
-                if (statusFilter === "hidden") return !cat.isActive
-                return true
-              })
-            ).map(cat => renderRow(cat))}
-            </tbody>
+            {searchCategory
+              ? categories // 🔥 SEARCH MODE → FLAT
+                  .filter(cat => {
+                    if (statusFilter === "active") return cat.isActive
+                    if (statusFilter === "hidden") return !cat.isActive
+                    return true
+                  })
+                  .map(cat => renderRow(cat, 0))
+              : filterTreeAdvanced(buildTree(categories)) // 🔥 BROWSE MODE → TREE
+                  .map(cat => renderRow(cat))
+            }
+          </tbody>
         </table>
       
         {/* 🔥 load more trigger */}

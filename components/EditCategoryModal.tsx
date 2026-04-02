@@ -126,7 +126,7 @@ export default function EditCategoryModal({
                   setParent("")
                   setParentSearch("")
                 }}
-                className="absolute right-2 inset-y-0 flex items-center text-gray-400"
+                className="absolute right-2 inset-y-0 flex items-center text-gray-400 mb-4 hover:text-gray-600 cursor-pointer"
               >
                 ✕
               </button>
@@ -186,6 +186,7 @@ export default function EditCategoryModal({
           value={properties}
           onChange={setProperties}
           placeholder="Search properties..."
+        
         />
 
         {/* ACTION */}

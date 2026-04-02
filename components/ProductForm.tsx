@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import ImagesUpload from "./ImagesUpload";
 import CategorySelect from "./CategorySelect";
+import { useSearchParams } from "next/navigation";
 
 export default function ProductForm({
   _id,
@@ -41,6 +42,8 @@ export default function ProductForm({
   const [brand, setBrand] = useState(existingBrand || "");
   const [propSearch, setPropSearch] = useState("");
   const [categoryProperties, setCategoryProperties] = useState<any[]>([]);
+  const searchParams = useSearchParams();
+
   
   useEffect(() => {
     if (!category) return;
@@ -348,6 +351,7 @@ export default function ProductForm({
         price: Number(price), // ,
       }),
     };
+    console.log("Saving product with data:", data);
     // 🔥 SAVE
     if (_id) {
       await axios.put(`/api/products/${_id}`, data);
@@ -356,8 +360,18 @@ export default function ProductForm({
       await axios.post("/api/products", data);
       toast.success("Created");
     }
-  
-    router.push("/products");
+    const page = searchParams.get("page") || "1";
+    const search = searchParams.get("search") || "";
+    const sort = searchParams.get("sort") || "newest";
+
+    router.push(`/products?page=${page}&search=${search}&sort=${sort}&highlight=${_id?.toString()}`);
+  }
+  function CanceleEdit() {
+    const page = searchParams.get("page") || "1";
+    const search = searchParams.get("search") || "";
+    const sort = searchParams.get("sort") || "newest";
+
+    router.push(`/products?page=${page}&search=${search}&sort=${sort}`);
   }
   return (
     <form onSubmit={saveProduct} className="max-w-7xl mx-auto px-6 py-6">
@@ -554,7 +568,7 @@ export default function ProductForm({
             <button className="w-full btn-primary">Save Product</button>
             <button
               type="button"
-              onClick={() => router.push("/products")}
+              onClick={() => CanceleEdit()}
               className="w-full btn-secondary"
             >
               Cancel
@@ -567,180 +581,4 @@ export default function ProductForm({
     </form>
   );
 
-  // return (
-  //   <form onSubmit={saveProduct} className="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
-
-  //     {/* BASIC */}
-  //     <div>
-  //       <label className="text-sm font-medium">Product Name</label>
-  //       <input value={title} onChange={e => setTitle(e.target.value)} className={inputClass}/>
-  //     </div>
-  //     <div>
-  //       <label className="text-sm font-medium">Brand</label>
-  //       <input value={brand} onChange={e => setBrand(e.target.value.toUpperCase())} className={inputClass}/>
-  //     </div>
-  //     <div>
-  //       <label className="text-sm font-medium">Description</label>
-  //       <textarea value={description} onChange={e => setDescription(e.target.value)} className={inputClass}/>
-  //     </div>
-  //     <div>
-  //       <label className="text-sm font-medium">Category</label>
-  //       <CategorySelect value={category} onChange={(newCat)=>{ 
-  //         if (variants.length > 0 || productAttributes.length > 0) {
-  //           const ok = confirm("Đổi category sẽ xoá variants & attributes. Tiếp tục?");
-  //           if (!ok) return;
-  //         }
-      
-  //         setCategory(newCat);
-  //       }}/>
-  //     </div>
-  //     <div>
-  //       <label className="text-sm font-medium">Price</label>
-  //       <input 
-  //         value={price}
-  //         onChange={(e) => setPrice(e.target.value)}
-  //         disabled={hasVariant}
-  //         placeholder={
-  //           hasVariant
-  //             ? "Giá được thiết lập theo từng biến thể bên dưới"
-  //             : "Nhập giá sản phẩm"
-  //         }
-  //         className={`w-full border px-2 py-1 rounded ${
-  //           hasVariant ? "bg-gray-100 cursor-not-allowed" : ""
-  //         }`}
-  //       />
-  //     </div>
-
-      
-
-     
-
-  //     {/* 🔥 ATTRIBUTES */}
-  //     {nonVariantProps.length > 0 && (
-  //         <div className="border rounded-lg bg-white shadow-sm">
-
-  //           <div className="flex justify-between items-center p-3 border-b">
-  //             <h3 className="font-semibold">Properties</h3>
-  //           </div>
-
-  //         <div className="max-h-[300px] overflow-y-auto p-  3">
-  //           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-
-  //           {categoryProperties
-  //             .filter(p =>
-  //               !p.isVariant 
-  //             )
-  //             .map((prop: any) => {
-
-  //               const existing = productAttributes.find(
-  //                 (p: any) =>
-  //                   p.property?.toString() === prop._id?.toString()
-  //               );
-
-  //               return (
-  //                 <div key={prop._id}>
-  //                   <label className="text-xs text-gray-500">
-  //                     {prop.name}
-  //                   </label>
-
-  //                   <select
-  //                     value={existing?.value || ""}
-  //                     onChange={(e) =>
-  //                       updateAttribute(prop._id, e.target.value)
-  //                     }
-  //                     className="w-full border rounded px-2 py-1 text-sm"
-  //                   >
-  //                     <option value="">Select</option>
-
-  //                     {prop.values.map((v: any) => (
-  //                       <option key={v._id} value={v._id}>
-  //                         {v.value}
-  //                       </option>
-  //                     ))}
-  //                   </select>
-  //                 </div>
-  //               );
-  //             })}
-  //           </div>
-  //         </div>
-  //       </div>
-  //     )}
-
-  //     {/* 🔥 VARIANTS */}
-  //     {variantProps.length > 0 && (
-  //     <div>
-  //       <div className="flex justify-between items-center">
-  //         <h3 className="font-semibold">Variants</h3>
-  //         <div className="flex gap-2">
-  //           <button type="button" onClick={generateVariants} className="bg-green-500 hover:bg-green-700 text-white px-3 py-1 rounded text-sm cursor-pointer">Auto</button>
-  //           <button type="button" onClick={addVariant} className="bg-blue-500 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm cursor-pointer">+ Add</button>
-  //         </div>
-  //       </div>
-
-  //       {variants.length > 0 && (
-  //         <div className="mt-4 space-y-4">
-  //           {variants.map((v, i) => (
-  //             <div key={i} className="border rounded-xl p-4 bg-white shadow-sm">
-
-  //               <div className="flex justify-between items-center mb-3">
-  //                 <span className="font-medium text-sm">Variant #{i + 1}</span>
-  //                 <button type="button" onClick={() => removeVariant(i)} className="btn-delete text-sm">Remove</button>
-  //               </div>
-
-  //               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-  //                 {variantProps.map((prop: any) => (
-  //                   <div key={prop._id}>
-  //                     <label className="text-xs text-gray-500 mb-1 block">
-  //                       {prop.name}
-  //                     </label>
-
-  //                     <select
-  //                       value={v.attributes?.[prop._id.toString()] || ""}
-  //                       onChange={(e) =>
-  //                         updateVariantAttr(i, prop._id, e.target.value)
-  //                       }
-  //                       className="w-full border rounded-md px-2 py-2 text-sm bg-white"
-  //                     >
-  //                       <option value="">Select</option>
-
-  //                       {prop.values.map((val: any) => (
-  //                         <option key={val._id} value={val._id}>
-  //                           {val.value}
-  //                         </option>
-  //                       ))}
-  //                     </select>
-  //                   </div>
-  //                 ))}
-  //               </div>
-
-  //               <div className="grid grid-cols-2 gap-3 mt-4">
-  //                 <input
-  //                   value={v.price}
-  //                   onChange={(e) => updateVariant(i, "price", e.target.value)}
-  //                   placeholder="Price"
-  //                   className="border px-3 py-2 rounded-md"
-  //                 />
-  //                 <input
-  //                   value={v.stock}
-  //                   onChange={(e) => updateVariant(i, "stock", e.target.value)}
-  //                   placeholder="Stock"
-  //                   className="border px-3 py-2 rounded-md"
-  //                 />
-  //               </div>
-
-  //             </div>
-  //           ))}
-  //         </div>
-  //       )}
-  //     </div>
-  //     )}
-  //     <ImagesUpload images={images} setImages={setImages}/>
-
-  //     <div className="flex justify-center gap-2">
-  //       <button className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">Save</button>
-  //       <button type="button" onClick={()=>router.push("/products")} className="border px-4 py-2 rounded">Cancel</button>
-  //     </div>
-
-  //   </form>
-  // );
-}
+  }

@@ -80,20 +80,13 @@ export async function PUT(req: Request, context: any) {
     );
   }
 
-  if (!body.category || !ObjectId.isValid(body.category)) {
-    return NextResponse.json(
-      { error: "Invalid category id" },
-      { status: 400 }
-    );
-  }
-
   const client = await clientPromise;
   const db = client.db("ecommerce");
 
   const categoryId = new ObjectId(body.category);
 
   const category = await db.collection("categories").findOne({
-    _id: categoryId
+    _id: categoryId,
   });
 
   if (!category) {
@@ -102,113 +95,108 @@ export async function PUT(req: Request, context: any) {
       { status: 400 }
     );
   }
-  // 🔥 attributes
-  const validAttributes = (body.attributes || []).map((a: any) => ({
-    property: new ObjectId(a.property),
-    value: new ObjectId(a.value)
-  }));
-  const properties = await db.collection("properties").find({
-    _id: { $in: category.properties.map((id: string) => new ObjectId(id)) }
-  }).toArray();
-  const variantProps = properties.filter(p => p.isVariant);
-  // ❗ nếu có variantProps mà không có variants → lỗi
-  if (variantProps.length > 0 && (!body.variants || body.variants.length === 0)) {
-    return NextResponse.json(
-      { error: "Variants required for this category" },
-      { status: 400 }
-    );
-  }
+
+  const properties = await db.collection("properties")
+    .find({
+      _id: {
+        $in: category.properties.map((id: string) => new ObjectId(id)),
+      },
+    })
+    .toArray();
+
+  const variantProps = properties.filter((p) => p.isVariant);
   const hasVariant = variantProps.length > 0;
+
+  // 🔥 VALIDATE
+  if (hasVariant && (!body.variants || body.variants.length === 0)) {
+    throw new Error("Variants required");
+  }
+
   if (!hasVariant) {
-    // 🔥 XÓA variant cũ trong DB
-    await db.collection("variants").deleteMany({
-      product: new ObjectId(id),
-    });
-    body.variants = [];
     if (!body.price || isNaN(Number(body.price))) {
       throw new Error("Invalid price");
     }
   }
-  // 🔥 update product
+
+  const validAttributes = (body.attributes || []).map((a: any) => ({
+    property: new ObjectId(a.property),
+    value: new ObjectId(a.value),
+  }));
+
+  // 🔥 UPDATE PRODUCT BASE
   await db.collection("products").updateOne(
     { _id: new ObjectId(id) },
     {
       $set: {
         title: body.title,
         description: body.description,
-        ...(hasVariant ? {} : { price: Number(body.price) }),
-
-        minPrice: 0,
-        maxPrice: 0,
-        images: body.images,
         brand: body.brand || "GEN",
+        images: body.images,
         category: categoryId,
         attributes: validAttributes,
         updatedAt: new Date(),
       },
     }
   );
-  function normalizeAttributes(attrs: any[]) {
-    return attrs.sort((a, b) =>
-      a.property.toString().localeCompare(b.property.toString())
-    );
-  }
-  // 🔥 reset variants
+
+  // 🔥 RESET VARIANTS
   await db.collection("variants").deleteMany({
-    product: new ObjectId(id)
+    product: new ObjectId(id),
   });
 
   const newVariants = [];
+  const seen = new Set();
 
   for (let v of body.variants || []) {
     const skuId = await getNextSKU(db);
-  
-    // ✅ VALIDATE ATTRIBUTE ĐỦ
+
     if (variantProps.length > 0) {
       if ((v.attributes || []).length !== variantProps.length) {
         throw new Error("Variant thiếu thuộc tính");
       }
-      
+
       for (let prop of variantProps) {
         const found = v.attributes.find(
-          (a: any) => a.property === prop._id.toString()
+          (a: any) =>
+            a.property.toString() === prop._id.toString()
         );
-      
+
         if (!found) {
-          throw new Error(`Variant thiếu thuộc tính ${prop.name}`);
+          throw new Error(`Thiếu ${prop.name}`);
         }
       }
     }
-  
-    // ✅ MAP (KHÔNG FILTER)
-    let attrs = (v.attributes || []).map((a: any) => {
-      if (!ObjectId.isValid(a.property) || !ObjectId.isValid(a.value)) {
-        throw new Error("Invalid ObjectId");
-      }
-    
-      return {
-        property: new ObjectId(a.property),
-        value: new ObjectId(a.value),
-      };
-    });
-    attrs = normalizeAttributes(attrs);
-  
+
+    if (isNaN(Number(v.price)) || isNaN(Number(v.stock))) {
+      throw new Error("Invalid price/stock");
+    }
+
+    let attrs = (v.attributes || []).map((a: any) => ({
+      property: new ObjectId(a.property),
+      value: new ObjectId(a.value),
+    }));
+
+    if (!attrs.length) throw new Error("Attributes empty");
+
+    attrs.sort((a, b) =>
+      a.property.toString().localeCompare(b.property.toString())
+    );
+
     const variantKey = attrs
-      .map(a => `${a.property}:${a.value}`)
+      .map((a) => `${a.property}:${a.value}`)
       .join("|");
-  
-    const exists = await db.collection("variants").findOne({
-      product: new ObjectId(id),
-      variantKey,
-    });
-  
-    if (exists) {
+
+    if (!variantKey) throw new Error("Invalid variantKey");
+
+    if (seen.has(variantKey)) {
       throw new Error("Duplicate variant");
     }
-  
+    seen.add(variantKey);
+
     newVariants.push({
       product: new ObjectId(id),
       attributes: attrs,
+      variantKey,
       sku: generateSKUProMax(
         attrs,
         category.skuPrefix || "SKU",
@@ -218,30 +206,43 @@ export async function PUT(req: Request, context: any) {
       price: Number(v.price),
       stock: Number(v.stock),
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
   }
 
   if (newVariants.length > 0) {
     await db.collection("variants").insertMany(newVariants);
   }
-  if (newVariants.length > 0) {
-    const prices = newVariants.map(v => v.price);
-  
+
+  // 🔥 PRICE LOGIC (FINAL)
+  if (hasVariant && newVariants.length > 0) {
+    const prices = newVariants.map((v) => v.price);
+
     await db.collection("products").updateOne(
       { _id: new ObjectId(id) },
       {
         $set: {
-          price: hasVariant?"":Number(body.price),
+          price: null,
           minPrice: Math.min(...prices),
           maxPrice: Math.max(...prices),
         },
       }
     );
+  } else {
+    await db.collection("products").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          price: Number(body.price),
+          minPrice: 0,
+          maxPrice: 0,
+        },
+      }
+    );
   }
+
   return NextResponse.json({ success: true });
 }
-
 export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> }

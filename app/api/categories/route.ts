@@ -5,16 +5,18 @@ import { ObjectId } from "mongodb"
 function slugify(text: string) {
   return text
     .toLowerCase()
+    .replace(/đ/g, "d") // 🔥 FIX QUAN TRỌNG
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "") // 🔥 không dùng \w
+    .trim()
     .replace(/\s+/g, "-")
-    .replace(/[^\w-]+/g, "")
 }
-
+ 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-
+    
     const page = Number(searchParams.get("page") || 1)
     const limit = Number(searchParams.get("limit") || 25)
     const search = searchParams.get("search") || ""
@@ -22,31 +24,76 @@ export async function GET(req: Request) {
     const client = await clientPromise
     const db = client.db("ecommerce")
 
-    let query: any = {  }
+    function normalizeVietnamese(str: string) {
+      return str
+        .toLowerCase()
+        .replace(/đ/g, "d") // 🔥 bắt buộc
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+        .replace(/[^a-z0-9\s]/g, "") // bỏ ký tự đặc biệt
+        .replace(/\s+/g, " ") // chuẩn hóa khoảng trắng
+        .trim()
+    }
+    // if (!search) {
+    //   return NextResponse.json({
+    //     data: [],  
+    //     total: 0,
+    //     page,
+    //     totalPages: 0
+    //   })
+    // }
+    let query: any = {}
+
+    function escapeRegex(str: string) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    }
 
     if (search) {
+      const keyword = normalizeVietnamese(search)
+      const regex = new RegExp(keyword.split(" ").join(".*"), "i")
+    
+      // 🔥 Step 1: tìm category match name
       const matched = await db.collection("categories")
-        .find({ name: { $regex: search, $options: "i" } })
+        .find({ name_normalized: { $regex: `.*${keyword}.*`, $options: "i" } })
+        .project({ path: 1 })
         .toArray()
-
-      const paths = matched.map(c => c.path)
-
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { path: { $in: paths.map(p => new RegExp(`^${p}`)) } }
-      ]
+    
+      // ❌ không có match → trả rỗng luôn (FIX BUG)
+      if (matched.length === 0) {
+        return NextResponse.json({
+          data: [],
+          total: 0,
+          page,
+          totalPages: 0
+        })
+      }
+    
+      // 🔥 Step 2: build regex từ path
+      const pathRegex = new RegExp(
+        `^(${matched.map(c =>
+          escapeRegex(c.path)
+        ).join("|")})(/|$)`
+      )
+    
+      // 🔥 Query cuối cùng (CHỈ 1 điều kiện)
+      query = {
+        $or: [
+          { name_normalized: regex },
+          { path: pathRegex }
+        ]
+      }
     }
 
     const total = await db.collection("categories").countDocuments(query)
 
     const categories = await db.collection("categories")
       .find(query)
-      .sort({ path:1, createdAt:1 })
+      .sort({ path: 1, createdAt: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .toArray()
 
-    // 🔥 FIX: populate parent thủ công
+    // 🔥 populate parent
     const parentIds = categories
       .map(c => c.parent)
       .filter(Boolean)
@@ -85,12 +132,21 @@ export async function POST(req: Request) {
     if (!body.name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
-
+    function normalizeVietnamese(str: string) {
+      return str
+        .toLowerCase()
+        .replace(/đ/g, "d") // 🔥 bắt buộc
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+        .replace(/[^a-z0-9\s]/g, "") // bỏ ký tự đặc biệt
+        .replace(/\s+/g, " ") // chuẩn hóa khoảng trắng
+        .trim()
+    }
     const client = await clientPromise
     const db = client.db("ecommerce")
 
     const slug = slugify(body.name)
-
+    const name_normalized = normalizeVietnamese(body.name)
     // 🔥 check duplicate slug
     const exists = await db.collection("categories").findOne({ slug })
     if (exists) {
@@ -117,6 +173,7 @@ export async function POST(req: Request) {
 
     const result = await db.collection("categories").insertOne({
       name: body.name,
+      name_normalized,
       slug,
       parent,
       level,

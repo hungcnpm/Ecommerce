@@ -1,105 +1,282 @@
-import mongoose from "mongoose"
-import dotenv from "dotenv"
-dotenv.config()
+import clientPromise from "../lib/mongodb.mjs";
 
-// ====== CONFIG ======
-const MONGO_URI = process.env.MONGODB_URI
+/* ================== HELPERS ================== */
 
-// ====== SCHEMA (reuse nếu bạn đã có thì import lại) ======
-const ProductSchema = new mongoose.Schema({
-  title: String,
-  description: String,
-  price: Number,
-  category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
-  properties: Object,
-})
+function slugify(str) {
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "");
+}
 
-const CategorySchema = new mongoose.Schema({
-  name: String,
-  properties: [
-    {
-      name: String,
-      values: [String],
-    },
+function random(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function rand(min, max) {
+  return Math.floor(Math.random() * (max - min) + min);
+}
+
+function cartesianProduct(arr) {
+  return arr.reduce(
+    (a, b) => a.flatMap(d => b.map(e => [...d, e])),
+    [[]]
+  );
+}
+
+/* ================== PROPERTY MAP ================== */
+
+const PROPERTY_MAP = {
+  "Điện thoại": [
+    { name: "Brand", values: ["Apple", "Samsung", "Xiaomi"], isVariant: false },
+    { name: "RAM", values: ["6GB", "8GB", "12GB"], isVariant: true },
+    { name: "Storage", values: ["128GB", "256GB", "512GB"], isVariant: true },
+    { name: "Color", values: ["Black", "White", "Blue"], isVariant: true },
   ],
-})
 
-const Product = mongoose.models.Product || mongoose.model("Product", ProductSchema)
-const Category = mongoose.models.Category || mongoose.model("Category", CategorySchema)
+  "Laptop": [
+    { name: "Brand", values: ["Apple", "Dell", "Asus"], isVariant: false },
+    { name: "RAM", values: ["8GB", "16GB", "32GB"], isVariant: true },
+    { name: "Storage", values: ["256GB", "512GB", "1TB"], isVariant: true },
+  ],
 
-// ====== DATA GENERATOR ======
+  "Áo": [
+    { name: "Size", values: ["M", "L", "XL"], isVariant: true },
+    { name: "Color", values: ["Black", "White", "Blue"], isVariant: true },
+  ],
+};
 
-const adjectives = ["Pro", "Max", "Ultra", "Mini", "Plus", "Smart", "Air"]
-const brands = ["Samsung", "Apple", "Xiaomi", "Sony", "LG", "Asus"]
+/* ================== PRODUCT TEMPLATES ================== */
 
-function randomItem(arr) {
-  return arr[Math.floor(Math.random() * arr.length)]
+const MODELS = {
+  "Điện thoại": [
+    { name: "iPhone 15", brand: "Apple", base: 900 },
+    { name: "iPhone 15 Pro Max", brand: "Apple", base: 1200 },
+    { name: "Samsung S23 Ultra", brand: "Samsung", base: 1100 },
+    { name: "Xiaomi 13 Pro", brand: "Xiaomi", base: 800 },
+  ],
+
+  "Laptop": [
+    { name: "Macbook Air M2", brand: "Apple", base: 1300 },
+    { name: "Dell XPS 13", brand: "Dell", base: 1200 },
+    { name: "Asus ROG Strix", brand: "Asus", base: 1500 },
+  ],
+
+  "Áo": [
+    { name: "Áo thun basic", brand: "Local Brand", base: 10 },
+    { name: "Áo hoodie", brand: "Local Brand", base: 20 },
+  ],
+};
+
+/* ================== EXTRACT PROPERTIES ================== */
+
+function extractAllProperties() {
+  const all = {};
+
+  Object.values(PROPERTY_MAP).forEach(list => {
+    list.forEach(p => {
+      if (!all[p.name]) {
+        all[p.name] = {
+          name: p.name,
+          values: new Set(),
+          isVariant: p.isVariant,
+        };
+      }
+      p.values.forEach(v => all[p.name].values.add(v));
+    });
+  });
+
+  return Object.values(all).map(p => ({
+    name: p.name,
+    values: [...p.values],
+    isVariant: p.isVariant,
+  }));
 }
 
-function randomPrice(base = 100) {
-  return Math.floor(base + Math.random() * base * 5)
-}
+/* ================== MAIN SEED ================== */
 
-function generateTitle(categoryName) {
-  return `${randomItem(brands)} ${categoryName} ${randomItem(adjectives)}`
-}
+async function seed() {
+  const client = await clientPromise;
+  const db = client.db("ecommerce");
 
-function generateDescription(title) {
-  return `${title} là sản phẩm chất lượng cao, thiết kế hiện đại, phù hợp nhu cầu sử dụng hàng ngày.`
-}
+  console.log("🧹 Clearing...");
+  await db.collection("categories").deleteMany({});
+  await db.collection("properties").deleteMany({});
+  await db.collection("propertyvalues").deleteMany({});
+  await db.collection("products").deleteMany({});
+  await db.collection("variants").deleteMany({});
 
-function generateProperties(category) {
-  const props = {}
-  if (!category.properties) return props
+  /* ===== PROPERTIES ===== */
+  const allProps = extractAllProperties();
 
-  for (const prop of category.properties) {
-    if (prop.values?.length) {
-      props[prop.name] = randomItem(prop.values)
-    }
+  const propDocs = allProps.map(p => ({
+    name: p.name,
+    isVariant: p.isVariant,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }));
+
+  const propRes = await db.collection("properties").insertMany(propDocs);
+
+  const propMap = {};
+  propDocs.forEach((p, i) => {
+    propMap[p.name] = propRes.insertedIds[i];
+  });
+
+  /* ===== VALUES ===== */
+  const valueDocs = [];
+
+  allProps.forEach(p => {
+    const propId = propMap[p.name];
+
+    p.values.forEach(val => {
+      valueDocs.push({
+        property: propId,
+        value: val,
+        slug: slugify(val),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+  });
+
+  await db.collection("propertyvalues").insertMany(valueDocs);
+
+  const values = await db.collection("propertyvalues").find().toArray();
+
+  const valueGrouped = {};
+  values.forEach(v => {
+    const key = v.property.toString();
+    if (!valueGrouped[key]) valueGrouped[key] = [];
+    valueGrouped[key].push(v);
+  });
+
+  /* ===== CATEGORIES ===== */
+  const categoryIds = {};
+
+  for (const name of Object.keys(PROPERTY_MAP)) {
+    const res = await db.collection("categories").insertOne({
+      name,
+      slug: slugify(name),
+      level: 1,
+      path: slugify(name),
+      properties: PROPERTY_MAP[name].map(p => propMap[p.name]),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    categoryIds[name] = res.insertedId;
   }
-  return props
-}
 
-// ====== MAIN SEED FUNCTION ======
+  /* ===== PRODUCTS ===== */
+  let total = 0;
 
-async function seedProducts() {
-  await mongoose.connect(MONGO_URI)
-  console.log("✅ Connected MongoDB")
+  for (let i = 0; i < 500; i++) {
+    const catName = random(Object.keys(PROPERTY_MAP));
+    const categoryId = categoryIds[catName];
+    const model = random(MODELS[catName]);
 
-  const categories = await Category.find()
+    const props = PROPERTY_MAP[catName];
 
-  if (!categories.length) {
-    console.log("❌ No categories found")
-    process.exit(1)
-  }
+    // product attributes (non-variant)
+    const attributes = props
+      .filter(p => !p.isVariant)
+      .map(p => {
+        const vals = valueGrouped[propMap[p.name].toString()];
+        const val = random(vals);
 
-  const products = []
+        return {
+          property: propMap[p.name],
+          value: val._id,
+        };
+      });
 
-  for (let i = 0; i < 100; i++) {
-    const category = randomItem(categories)
+    const title = `${model.name} ${random(["Chính hãng", "Giá tốt", "Sale"])}`;
 
-    const title = generateTitle(category.name)
+    const basePrice = model.base;
 
-    const product = {
+    const productRes = await db.collection("products").insertOne({
       title,
-      description: generateDescription(title),
-      price: randomPrice(50),
-      category: category._id,
-      properties: generateProperties(category),
+      slug: slugify(title + "-" + i),
+      description: "Sản phẩm chất lượng cao",
+
+      brand: model.brand,
+      category: categoryId,
+
+      price: basePrice,
+      minPrice: basePrice,
+      maxPrice: basePrice + 300,
+
+      images: [
+        `https://picsum.photos/seed/${i}/500`,
+        `https://picsum.photos/seed/${i + 1}/500`,
+      ],
+
+      attributes,
+      properties: props.map(p => propMap[p.name]),
+
+      rating: +(Math.random() * 2 + 3).toFixed(1),
+      sold: rand(10, 2000),
+      discount: rand(0, 30),
+
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const productId = productRes.insertedId;
+
+    /* ===== VARIANTS ===== */
+    const variantProps = props.filter(p => p.isVariant);
+
+    const arrays = variantProps.map(p =>
+      valueGrouped[propMap[p.name].toString()]
+    );
+
+    const combos = cartesianProduct(arrays);
+
+    const variants = [];
+
+    for (let combo of combos.slice(0, 10)) {
+      let price = basePrice;
+
+      combo.forEach(v => {
+        const val = v.value.toLowerCase();
+        if (val.includes("256")) price += 100;
+        if (val.includes("512")) price += 200;
+        if (val.includes("16")) price += 80;
+      });
+
+      const attrs = combo.map(v => ({
+        property: v.property,
+        value: v._id,
+      }));
+
+      const key = attrs
+        .map(a => `${a.property}:${a.value}`)
+        .sort()
+        .join("|");
+
+      variants.push({
+        product: productId,
+        sku: `SKU-${i}-${variants.length}`,
+        price,
+        stock: rand(0, 100),
+        attributes: attrs,
+        variantKey: key,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
     }
 
-    products.push(product)
+    await db.collection("variants").insertMany(variants);
+
+    total++;
   }
 
-  await Product.deleteMany({})
-  await Product.insertMany(products)
-
-  console.log(`🚀 Inserted ${products.length} products`)
-
-  await mongoose.disconnect()
+  console.log("🚀 DONE:", total, "products");
+  process.exit();
 }
 
-seedProducts().catch(err => {
-  console.error(err)
-  process.exit(1)
-})
+seed();
