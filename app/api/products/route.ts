@@ -68,7 +68,22 @@ export async function GET(req: Request) {
             as: "variants",
           },
         },
-
+        {
+          $lookup: {
+            from: "properties",
+            localField: "variants.attributes.property",
+            foreignField: "_id",
+            as: "variantPropertyDetails"
+          }
+        },
+        {
+          $lookup: {
+            from: "propertyvalues",
+            localField: "variants.attributes.value",
+            foreignField: "_id",
+            as: "variantValueDetails"
+          }
+        },
         { $sort: sortQuery },
         { $skip: skip },
         { $limit: limit },

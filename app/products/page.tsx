@@ -297,12 +297,40 @@ export default function Products() {
 
                               {p.variants?.length > 0 ? (
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                  {p.variants.map((v: any, i: number) => (
-                                    <div key={i} className="border rounded p-2">
-                                      <div>Price: ${v.price}</div>
-                                      <div>Stock: {v.stock}</div>
-                                    </div>
-                                  ))}
+                                  {p.variants.map((v: any, i: number) => {
+                                    const label = v.attributes
+                                      ?.map((a: any) => {
+                                        const val = p.variantValueDetails?.find(
+                                          (val: any) => val._id.toString() === a.value.toString()
+                                        );
+                                        return val?.value;
+                                      })
+                                      .filter(Boolean)
+                                      .join(" / ");
+
+                                    return (
+                                      <div
+                                        key={i}
+                                        className="flex items-center justify-between border rounded-lg px-3 py-2 bg-white"
+                                      >
+                                        {/* 🔥 ATTRIBUTES */}
+                                        <div className="font-medium text-gray-700">
+                                          {label}
+                                        </div>
+
+                                        {/* 🔥 RIGHT */}
+                                        <div className="flex gap-4 text-sm">
+                                          <span className="text-blue-600 font-semibold">
+                                            ${v.price}
+                                          </span>
+
+                                          <span className={v.stock < 5 ? "text-red-500" : "text-gray-600"}>
+                                            Stock: {v.stock}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <div>No variants</div>

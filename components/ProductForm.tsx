@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -24,7 +24,7 @@ export default function ProductForm({
 
   const inputClass =
     "w-full border rounded-md px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-400";
-
+  //#region state
   const [title, setTitle] = useState(existingTitle || "");
   const [description, setDescription] = useState(existingDescription || "");
   const [price, setPrice] = useState(existingPrice || "");
@@ -42,61 +42,49 @@ export default function ProductForm({
   const [brand, setBrand] = useState(existingBrand || "");
   const [propSearch, setPropSearch] = useState("");
   const [categoryProperties, setCategoryProperties] = useState<any[]>([]);
-  const searchParams = useSearchParams();
 
-  
+  //#endregion
+  const searchParams = useSearchParams();
+  const variantProps = categoryProperties.filter((p) => p.isVariant);
+  const nonVariantProps = categoryProperties.filter(p => !p.isVariant);
+  const hasVariant = variantProps.length > 0;
+  //#region effects
   useEffect(() => {
     if (!category) return;
-
+  
     axios
       .get(`/api/categories/${category}/properties`)
       .then((res) => {
         setCategoryProperties(res.data);
       });
   }, [category]);
-
-  const variantProps = categoryProperties.filter((p) => p.isVariant);
-  const nonVariantProps = categoryProperties.filter(p => !p.isVariant);
-  const hasVariant = variantProps.length > 0;
+ 
   useEffect(() => {
-    if (!hasVariant) {
-      setVariants([]);
-    }
-  }, [hasVariant]);
-  useEffect(() => {
-  // ❗ chỉ reset khi tạo mới, KHÔNG phải edit
-    if (!_id) {
-      setProductAttributes([]);
-      setVariants([]);
-    }
-  }, [category]);
-  useEffect(() => {
-    if (!existingVariants) return;
+    if (!_id || !existingVariants) return;
   
     const normalized = existingVariants.map((v: any) => ({
       ...v,
-      attributes: Object.fromEntries(
-        (v.attributes || []).map((a: any) => [
-          a.property?.toString(),
-          a.value?.toString(),
-        ])
-      ),
+      attributes: (v.attributes || []).map((a: any) => ({
+        property: a.property?.toString(),
+        value: a.value?.toString(),
+      })),
     }));
   
     setVariants(normalized);
-  }, [existingVariants]);
-  
+  }, [_id]);
   useEffect(() => {
-    if (!existingAttributes) return;
+    if (!_id) {
+      // create mode → reset sạch
+      setVariants([]);
+      setProductAttributes([]);
+      return;
+    }
+    // edit mode → KHÔNG reset (tránh mất data)
+  }, [category]);
   
-    const normalized = existingAttributes.map((a: any) => ({
-      property: a.property?.toString(),
-      value: a.value?.toString(),
-    }));
-  
-    setProductAttributes(normalized);
-  }, [existingAttributes]);
-  // 🔥 ATTRIBUTE UPDATE
+//#endregion
+// 🔥 ATTRIBUTE UPDATE
+
   function updateAttribute(propertyId: string, valueId: string) {
     setProductAttributes((prev: any[]) => {
       const filtered = prev.filter(
@@ -120,7 +108,13 @@ export default function ProductForm({
     }
     if (variantProps.length > 0) {
       const missing = variants.some(v =>
-        variantProps.some(p => !v.attributes?.[p._id.toString()])
+        variantProps.some(p => {
+          const found = v.attributes?.find(
+            (a: any) => a.property === p._id.toString()
+          );
+      
+          return !found || !found.value;
+        })
       );
   
       if (missing) {
@@ -129,11 +123,10 @@ export default function ProductForm({
       }
     }
   
-    const attrs: any = {};
-  
-    variantProps.forEach(p => {
-      attrs[p._id.toString()] = "";
-    });
+    const attrs = variantProps.map(p => ({
+      property: p._id.toString(),
+      value: "",
+    }));
   
     setVariants(prev => [
       ...prev,
@@ -154,10 +147,11 @@ export default function ProductForm({
   
       return {
         ...v,
-        attributes: {
-          ...(v.attributes || {}),
-          [propertyId.toString()]: valueId.toString(),
-        },
+        attributes: (v.attributes || []).map((a: any) =>
+          a.property === propertyId
+            ? { ...a, value: valueId }
+            : a
+        )
       };
     });
     
@@ -170,27 +164,22 @@ export default function ProductForm({
   }
 
   function isDuplicateVariant(newVariant: any, index: number, list: any[]) {
-    const keys = Object.keys(newVariant.attributes || {});
-
-    if (keys.length === 0) return false;
-
-    if (Object.values(newVariant.attributes).some(v => !v)) return false;
-
-    // 🔥 normalize object
-    const normalize = (obj: any) =>
-      Object.entries(obj)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .reduce((acc, [k, v]) => {
-          acc[k] = v;
-          return acc;
-        }, {} as any);
-
-    const current = JSON.stringify(normalize(newVariant.attributes));
-
+    if (!newVariant.attributes || newVariant.attributes.length === 0) return false;
+  
+    // chưa chọn đủ value → chưa check duplicate
+    if (newVariant.attributes.some((a: any) => !a.value)) return false;
+  
+    const normalize = (attrs: any[]) =>
+      [...attrs]
+        .sort((a, b) => a.property.localeCompare(b.property))
+        .map(a => `${a.property}:${a.value}`)
+        .join("|");
+  
+    const current = normalize(newVariant.attributes);
+  
     return list.some((v, i) => {
       if (i === index) return false;
-
-      return current === JSON.stringify(normalize(v.attributes));
+      return current === normalize(v.attributes);
     });
   }
 
@@ -216,15 +205,13 @@ export default function ProductForm({
     const combos = cartesian(lists);
 
     const newVariants = combos.map((combo: any[]) => {
-      const attributes: any = {};
-
-      combo.forEach((value, i) => {
-        const prop = variantProps[i];
-        attributes[prop._id.toString()] = value._id.toString(); // 🔥 KEY FIX
-      });
+      const attributes = combo.map((value, i) => ({
+        property: variantProps[i]._id.toString(),
+        value: value._id.toString(),
+      }));
 
       return {
-        attributes,
+        attributes, 
         price: "",
         stock: "",
       };
@@ -232,65 +219,79 @@ export default function ProductForm({
 
     setVariants(newVariants);
   }
-  function mapVariantAttributes(attrsObj: any) {
-    return Object.entries(attrsObj || {}).map(([property, value]) => ({
-      property,
-      value,
-    }));
-  } 
   async function saveProduct(e: any) {
     e.preventDefault();
   //#region validate data
-    // 🔥 BASIC
-  if (!title.trim()) {
-    toast.error("Product name is required");
-    return;
-  }
+  // ================= VALIDATION =================
 
-  if (!category) {
-    toast.error("Please select category");
-    return;
-  }
+// 🔹 BASIC
+if (!title.trim()) {
+  toast.error("Tên sản phẩm là bắt buộc");
+  return;
+}
 
-  if (!images || images.length === 0) {
-    toast.error("Please upload at least 1 image");
-    return;
-  }
+if (!category) {
+  toast.error("Chưa chọn category");
+  return;
+}
 
-  // 🔥 NON-VARIANT ATTRIBUTES
-  const missingAttr = nonVariantProps.find(
-    p =>
-      !productAttributes.find(
-        a => a.property === p._id.toString() && a.value
-      )
+if (!images || images.length === 0) {
+  toast.error("Phải có ít nhất 1 ảnh");
+  return;
+}
+
+// 🔹 NON-VARIANT ATTRIBUTES
+for (const p of nonVariantProps) {
+  const found = productAttributes.find(
+    (a) => a.property === p._id.toString() && a.value
   );
 
-  if (missingAttr) {
-    toast.error(`Thiếu thuộc tính: ${missingAttr.name}`);
+  if (!found) {
+    toast.error(`Thiếu thuộc tính: ${p.name}`);
     return;
   }
+}
 
-  // 🔥 CASE: KHÔNG CÓ VARIANT
-  if (variantProps.length === 0) {
-    if (!price || isNaN(Number(price))) {
-      toast.error("Price không hợp lệ");
-      return;
-    }
+// ================= SINGLE PRODUCT =================
+if (variantProps.length === 0) {
+  if (!price || isNaN(Number(price))) {
+    toast.error("Giá không hợp lệ");
+    return;
   }
+}
 
-  // 🔥 CASE: CÓ VARIANT
-  if (variantProps.length > 0) {
-    if (!variants || variants.length === 0) {
-      toast.error("Chưa có variant");
-      return;
-    }
+// ================= VARIANT PRODUCT =================
+if (variantProps.length > 0) {
+  if (!variants || variants.length === 0) {
+    toast.error("Chưa có variant");
+    return;
+  }
 
   const seen = new Set();
 
   for (let i = 0; i < variants.length; i++) {
     const v = variants[i];
 
-    // price + stock
+    // 🔹 CHECK ATTRIBUTES
+    if (!v.attributes || v.attributes.length !== variantProps.length) {
+      toast.error(`Variant #${i + 1} thiếu thuộc tính`);
+      return;
+    }
+
+    for (const attr of v.attributes) {
+      if (!attr.value) {
+        const prop = variantProps.find(
+          (p) => p._id.toString() === attr.property
+        );
+    
+        toast.error(
+          `Variant #${i + 1} chưa chọn ${prop?.name || "thuộc tính"}`
+        );
+        return;
+      }
+    }
+
+    // 🔹 CHECK PRICE + STOCK
     if (
       v.price === "" ||
       v.stock === "" ||
@@ -301,27 +302,20 @@ export default function ProductForm({
       return;
     }
 
-    const attrs = v.attributes || {};
-
-    // đủ số lượng attr
-    if (Object.keys(attrs).length !== variantProps.length) {
-      toast.error(`Variant #${i + 1} thiếu thuộc tính`);
+    if (Number(v.price) <= 0) {
+      toast.error(`Variant #${i + 1} giá phải > 0`);
       return;
     }
 
-    // từng attr phải có value
-    for (const p of variantProps) {
-      const key = p._id.toString();
-      if (!attrs[key]) {
-        toast.error(`Variant #${i + 1} thiếu ${p.name}`);
-        return;
-      }
+    if (Number(v.stock) < 0) {
+      toast.error(`Variant #${i + 1} stock không hợp lệ`);
+      return;
     }
 
-    // 🔥 CHECK DUPLICATE (QUAN TRỌNG)
-    const key = Object.entries(attrs)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}:${v}`)
+    // 🔹 DUPLICATE CHECK
+    const key = [...v.attributes]
+      .sort((a, b) => a.property.localeCompare(b.property))
+      .map(a => `${a.property}:${a.value}`)
       .join("|");
 
     if (seen.has(key)) {
@@ -342,7 +336,7 @@ export default function ProductForm({
       category,
       attributes: productAttributes,
       variants: variants.map(v => ({
-        attributes: mapVariantAttributes(v.attributes),
+        attributes: v.attributes,
         price: Number(v.price),
         stock: Number(v.stock),
       })),
@@ -422,6 +416,11 @@ export default function ProductForm({
                     if (!ok) return;
                   }
                   setCategory(newCat);
+
+                  // 🔥 RESET EVERYTHING
+                  setVariants([]);
+                  setProductAttributes([]);
+
                 }}
               />
             </div>
@@ -516,7 +515,9 @@ export default function ProductForm({
                       {variantProps.map((prop: any) => (
                         <select
                           key={prop._id}
-                          value={v.attributes?.[prop._id.toString()] || ""}
+                          value={
+                            v.attributes?.find((a: any) => a.property === prop._id.toString())?.value || ""
+                          }
                           onChange={(e) =>
                             updateVariantAttr(i, prop._id, e.target.value)
                           }
